@@ -2,12 +2,9 @@ package router
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"time"
 
@@ -158,28 +155,8 @@ func parseLine(dec *json.Decoder, dest *columnar.Event) error {
 	return nil
 }
 
-func NewServer(mux *http.ServeMux) http.Server {
-	srv := http.Server{Addr: ":8080", Handler: mux}
+func NewServer(mux *http.ServeMux, port int) *http.Server {
+	srv := http.Server{Addr: fmt.Sprintf(":%d", port), Handler: mux}
 
-	return srv
-}
-
-type AppServer struct {
-}
-
-func run(m *http.ServeMux, ctx context.Context) {
-	srv := http.Server{Addr: ":8080", Handler: m}
-
-	go func() {
-		err := srv.ListenAndServe()
-
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			slog.Error("unexpected server error", "err", err)
-		}
-	}()
-
-	<-ctx.Done()
-	timeout, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	_ = srv.Shutdown(timeout)
+	return &srv
 }
