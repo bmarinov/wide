@@ -11,7 +11,23 @@ import (
 	"github.com/bmarinov/sandbox-columnstore/internal/columnar"
 )
 
-func NewAppMux(s *columnar.Store) *http.ServeMux {
+func NewAppMux(store *columnar.Store) *http.ServeMux {
+	otelMux := newOTELMux(store)
+	eventMux := newEventsMux(store)
+
+	appMux := http.NewServeMux()
+	appMux.Handle("/v1/", otelMux)
+	appMux.Handle("/", eventMux)
+
+	return appMux
+}
+
+func NewServer(mux *http.ServeMux, port int) *http.Server {
+	srv := http.Server{Addr: fmt.Sprintf(":%d", port), Handler: mux}
+	return &srv
+}
+
+func newEventsMux(store *columnar.Store) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("POST /query", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		from, err := time.Parse(time.RFC3339, r.URL.Query().Get("from"))
@@ -32,9 +48,9 @@ func NewAppMux(s *columnar.Store) *http.ServeMux {
 			return
 		}
 		w.Header().Set("Content-Type", "application/x-ndjson")
-		sink := columnar.NewStreamingSink(w)
 
-		err = s.Query(r.Context(), from, to, params, sink)
+		sink := columnar.NewStreamingSink(w)
+		err = store.Query(r.Context(), from, to, params, sink)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -42,7 +58,7 @@ func NewAppMux(s *columnar.Store) *http.ServeMux {
 	}))
 	mux.Handle("POST /events", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		err := processNDJSON(r.Body, func(e columnar.Event) error {
-			return s.Receive(r.Context(), e, nil)
+			return store.Receive(r.Context(), e, nil)
 		})
 
 		if err != nil {
@@ -153,10 +169,4 @@ func parseLine(dec *json.Decoder, dest *columnar.Event) error {
 		return err
 	}
 	return nil
-}
-
-func NewServer(mux *http.ServeMux, port int) *http.Server {
-	srv := http.Server{Addr: fmt.Sprintf(":%d", port), Handler: mux}
-
-	return &srv
 }
