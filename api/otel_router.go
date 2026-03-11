@@ -25,7 +25,6 @@ func newOTELMux(store *columnar.Store) *http.ServeMux {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		log.Printf("content-type: %s body len: %d body[:200]: %s", r.Header.Get("Content-Type"), len(body), body[:min(200, len(body))])
 
 		unmarshaler := &pmetric.JSONUnmarshaler{}
 		md, err := unmarshaler.UnmarshalMetrics(body)
