@@ -8,6 +8,35 @@ import (
 	"time"
 )
 
+// CollectSink gathers the response in memory.
+type CollectSink struct {
+	cols   []Column
+	Result []Event
+}
+
+// Schema implements [Sink].
+func (c *CollectSink) Schema(columns []Column) {
+	c.cols = columns
+}
+
+// Row implements [Sink].
+func (c *CollectSink) Row(ts time.Time, values []any) bool {
+	row := Event{
+		Timestamp: ts,
+	}
+
+	for i, v := range c.cols {
+		if values[i] != nil {
+			row.Fields = append(row.Fields, Field{Name: v.Name, Value: values[i]})
+		}
+	}
+
+	c.Result = append(c.Result, row)
+	return true
+}
+
+var _ Sink = &CollectSink{}
+
 type StreamingSink struct {
 	columns []Column
 	// writer is used by encoder, can replace later?
