@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -65,6 +66,43 @@ func newEventsMux(store *columnar.Store) *http.ServeMux {
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
 			w.WriteHeader(http.StatusAccepted)
+		}
+	}))
+
+	mux.Handle("POST /query/json", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		from, err := time.Parse(time.RFC3339, r.URL.Query().Get("from"))
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		to, err := time.Parse(time.RFC3339, r.URL.Query().Get("to"))
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		var params columnar.QueryParams
+		err = json.NewDecoder(r.Body).Decode(&params)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		sink := &columnar.CollectSink{}
+		_ = store.Query(r.Context(), from, to, params, sink)
+
+		w.Header().Set("Content-Type", "application/json")
+
+		rows := make([]map[string]any, 0, len(sink.Result))
+		for _, e := range sink.Result {
+			row := map[string]any{"ts": e.Timestamp.Format(time.RFC3339Nano)}
+			for _, f := range e.Fields {
+				row[f.Name] = f.Value
+			}
+			rows = append(rows, row)
+		}
+		err = json.NewEncoder(w).Encode(rows)
+		if err != nil {
+			slog.Error("encoding json", "err", err)
 		}
 	}))
 	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
