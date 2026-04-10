@@ -94,7 +94,10 @@ func newEventsMux(store *columnar.Store) *http.ServeMux {
 
 		rows := make([]map[string]any, 0, len(sink.Result))
 		for _, e := range sink.Result {
-			row := map[string]any{"ts": e.Timestamp.Format(time.RFC3339Nano)}
+			row := map[string]any{}
+			if !e.Timestamp.IsZero() {
+				row["ts"] = e.Timestamp.Format(time.RFC3339Nano)
+			}
 			for _, f := range e.Fields {
 				row[f.Name] = f.Value
 			}
