@@ -109,6 +109,9 @@ func marshalRaw(row *jsonRow) ([]byte, error) {
 	return b.Bytes(), nil
 }
 
+// marshalMap
+//
+// Deprecated: only used in benchmark comparison.
 func marshalMap(row *jsonRow) ([]byte, error) {
 	if len(row.cols) != len(row.values) {
 		return nil, fmt.Errorf("keys and values arrays must have equal length")

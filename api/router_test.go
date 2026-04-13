@@ -311,6 +311,56 @@ func TestQueryPost_Json_Windowing(t *testing.T) {
 	}
 }
 
+func TestQueryPost_DuplicateSelect_Returns400(t *testing.T) {
+	s := columnar.New(t.Context(), columnar.Config{})
+	body, _ := json.Marshal(columnar.QueryParams{
+		Select: []string{"foo", "foo"},
+	})
+	from := time.Now().UTC().Format(time.RFC3339)
+	to := time.Now().Add(time.Minute).UTC().Format(time.RFC3339)
+	request, err := http.NewRequest(http.MethodPost,
+		fmt.Sprintf("/query?from=%s&to=%s", from, to),
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+
+	mux := NewAppMux(s)
+	recorder := httptest.NewRecorder()
+	mux.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Errorf("expected %d got %d", http.StatusBadRequest, recorder.Code)
+	}
+}
+
+func TestQueryPost_Json_DuplicateSelect_Returns400(t *testing.T) {
+	s := columnar.New(t.Context(), columnar.Config{})
+	body, _ := json.Marshal(columnar.QueryParams{
+		Select: []string{"foo", "foo"},
+	})
+	from := time.Now().UTC().Format(time.RFC3339)
+	to := time.Now().Add(time.Minute).UTC().Format(time.RFC3339)
+	request, err := http.NewRequest(http.MethodPost,
+		fmt.Sprintf("/query/json?from=%s&to=%s", from, to),
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+
+	mux := NewAppMux(s)
+	recorder := httptest.NewRecorder()
+	mux.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Errorf("expected %d got %d", http.StatusBadRequest, recorder.Code)
+	}
+}
+
 func ackFn(t *testing.T) (func(error), func()) {
 	t.Helper()
 	done := make(chan error, 1)

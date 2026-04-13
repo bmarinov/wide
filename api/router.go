@@ -51,6 +51,10 @@ func newEventsMux(store *columnar.Store) *http.ServeMux {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
+		if err := params.Validate(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 		w.Header().Set("Content-Type", "application/x-ndjson")
 
 		sink := columnar.NewStreamingSink(w)
@@ -86,6 +90,10 @@ func newEventsMux(store *columnar.Store) *http.ServeMux {
 		var params columnar.QueryParams
 		err = json.NewDecoder(r.Body).Decode(&params)
 		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if err := params.Validate(); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
