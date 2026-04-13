@@ -214,6 +214,103 @@ func TestQueryPost_Json_Aggregation(t *testing.T) {
 	}
 }
 
+func TestQueryPost_Json_Windowing(t *testing.T) {
+	s := columnar.New(t.Context(), columnar.Config{})
+	const window = time.Minute
+	tsRef := time.Now().Truncate(window)
+
+	// window 0 (tsRef): two events -> COUNT=2
+	// window 1 (tsRef+1m): one event -> COUNT=1
+	events := []columnar.Event{
+		{Timestamp: tsRef, Fields: []columnar.Field{{Name: "val", Value: float64(10)}}},
+		{Timestamp: tsRef.Add(30 * time.Second), Fields: []columnar.Field{{Name: "val", Value: float64(20)}}},
+		{Timestamp: tsRef.Add(90 * time.Second), Fields: []columnar.Field{{Name: "val", Value: float64(5)}}},
+	}
+	for _, e := range events {
+		ack, wait := ackFn(t)
+		_ = s.Receive(t.Context(), e, ack)
+		wait()
+	}
+
+	body, err := json.Marshal(columnar.QueryParams{
+		Window:       window,
+		Aggregations: []columnar.Aggregation{{Op: columnar.OpCount}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	from := tsRef.UTC().Format(time.RFC3339)
+	to := tsRef.Add(10 * time.Minute).UTC().Format(time.RFC3339)
+	request, err := http.NewRequest(http.MethodPost,
+		fmt.Sprintf("/query/json?from=%s&to=%s", from, to),
+		bytes.NewReader(body),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+
+	mux := NewAppMux(s)
+	recorder := httptest.NewRecorder()
+	mux.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("http %d: %s", recorder.Code, recorder.Body.String())
+	}
+
+	var rows []map[string]any
+	if err := json.NewDecoder(recorder.Body).Decode(&rows); err != nil {
+		t.Fatalf("invalid json: %v, body: %s", err, recorder.Body.String())
+	}
+
+	if len(rows) != 2 {
+		t.Fatalf("expected 2 bucket rows got %d: %v", len(rows), rows)
+	}
+
+	// every bucket row must carry a ts
+	for i, row := range rows {
+		if _, ok := row["ts"]; !ok {
+			t.Errorf("row %d missing ts field", i)
+		}
+	}
+
+	// parse ts -> COUNT; compare instants so the test is tz-agnostic
+	type bucketResult struct {
+		ts    time.Time
+		count float64
+	}
+	buckets := make([]bucketResult, 0, len(rows))
+	for _, row := range rows {
+		tsStr, _ := row["ts"].(string)
+		ts, err := time.Parse(time.RFC3339Nano, tsStr)
+		if err != nil {
+			t.Fatalf("unparseable ts %q: %v", tsStr, err)
+		}
+		count, ok := row["COUNT"].(float64)
+		if !ok {
+			t.Fatalf("COUNT missing or wrong type in row %v", row)
+		}
+		buckets = append(buckets, bucketResult{ts: ts, count: count})
+	}
+
+	countAt := func(want time.Time) float64 {
+		for _, b := range buckets {
+			if b.ts.Equal(want) {
+				return b.count
+			}
+		}
+		return -1
+	}
+
+	if got := countAt(tsRef); got != 2 {
+		t.Errorf("window 0: want COUNT=2, got %v", got)
+	}
+	if got := countAt(tsRef.Add(window)); got != 1 {
+		t.Errorf("window 1: want COUNT=1, got %v", got)
+	}
+}
+
 func ackFn(t *testing.T) (func(error), func()) {
 	t.Helper()
 	done := make(chan error, 1)
