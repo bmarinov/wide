@@ -3,6 +3,7 @@ package router
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -60,7 +61,11 @@ func newEventsMux(store *columnar.Store) *http.ServeMux {
 		sink := columnar.NewStreamingSink(w)
 		err = store.Query(r.Context(), from, to, params, sink)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
+			if errors.Is(err, columnar.ErrInvalidQuery) {
+				w.WriteHeader(http.StatusBadRequest)
+			} else {
+				w.WriteHeader(http.StatusInternalServerError)
+			}
 			return
 		}
 	}))
@@ -99,7 +104,15 @@ func newEventsMux(store *columnar.Store) *http.ServeMux {
 		}
 
 		sink := &columnar.CollectSink{}
-		_ = store.Query(r.Context(), from, to, params, sink)
+		err = store.Query(r.Context(), from, to, params, sink)
+		if err != nil {
+			if errors.Is(err, columnar.ErrInvalidQuery) {
+				w.WriteHeader(http.StatusBadRequest)
+			} else {
+				w.WriteHeader(http.StatusInternalServerError)
+			}
+			return
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 
