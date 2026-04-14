@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
@@ -119,7 +119,7 @@ func extractDataPoints(m pmetric.Metric, rKey string, resourceFields []columnar.
 		}
 	default:
 		// TODO: handle all types
-		log.Printf("unhandled metric type: %s %s", m.Name(), m.Type())
+		slog.Warn("unhandled metric type", "name", m.Name(), "type", m.Type())
 	}
 }
 
