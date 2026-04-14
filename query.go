@@ -46,6 +46,9 @@ func (q QueryParams) Validate() error {
 	}
 	if len(q.Aggregations) > 0 {
 		for _, agg := range q.Aggregations {
+			if !agg.Op.valid() {
+				return fmt.Errorf("unknown aggregation %q: %w", agg.Op, ErrInvalidQuery)
+			}
 			if agg.Op != OpCount && agg.Column == "" {
 				return fmt.Errorf("aggregation %s missing column name: %w", agg.Op, ErrInvalidQuery)
 			}
