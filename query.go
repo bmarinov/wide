@@ -36,6 +36,14 @@ func (q QueryParams) Validate() error {
 		}
 		seen[col] = struct{}{}
 	}
+	if len(q.Aggregations) > 0 {
+		for _, agg := range q.Aggregations {
+			if agg.Op != OpCount && agg.Column == "" {
+				return fmt.Errorf("aggregation %s missing column name", agg.Op)
+			}
+		}
+	}
+
 	return nil
 }
 
