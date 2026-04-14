@@ -3,12 +3,9 @@ package router
 import (
 	"bytes"
 	"compress/gzip"
-	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -16,6 +13,10 @@ import (
 	"github.com/bmarinov/sandbox-columnstore/internal/columnar"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	collpb "go.opentelemetry.io/proto/slim/otlp/collector/profiles/v1development"
+	_ "go.opentelemetry.io/proto/slim/otlp/profiles/v1development"
+	"google.golang.org/protobuf/encoding/protojson"
+	// profilespb "go.opentelemetry.io/proto/slim/otlp/profiles/v1development"
 )
 
 func newOTELMux(store *columnar.Store) *http.ServeMux {
@@ -28,22 +29,39 @@ func newOTELMux(store *columnar.Store) *http.ServeMux {
 			return
 		}
 
-		fname := fmt.Sprintf("./tmp/profiles_%d.json", time.Now().UnixNano())
-		var out []byte
-		var pretty bytes.Buffer
-		if json.Indent(&pretty, body, "", "  ") == nil {
-			out = pretty.Bytes()
-		} else {
-			out = body
+		req := collpb.ExportProfilesServiceRequest{}
+		err = protojson.Unmarshal(body, &req)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
 		}
-		if err := os.WriteFile(fname, out, 0o644); err != nil {
-			slog.Error("profiles: write file", "err", err)
-		} else {
-			slog.Info("profiles payload written", "file", fname, "bytes", len(out))
-		}
+		pivotProfiles(&req)
 
-		w.WriteHeader(http.StatusAccepted)
 	}))
+
+	// mux.Handle("POST /v1development/profiles", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// 	body, err := readBody(r)
+	// 	if err != nil {
+	// 		w.WriteHeader(http.StatusBadRequest)
+	// 		return
+	// 	}
+
+	// 	fname := fmt.Sprintf("./tmp/profiles_%d.json", time.Now().UnixNano())
+	// 	var out []byte
+	// 	var pretty bytes.Buffer
+	// 	if json.Indent(&pretty, body, "", "  ") == nil {
+	// 		out = pretty.Bytes()
+	// 	} else {
+	// 		out = body
+	// 	}
+	// 	if err := os.WriteFile(fname, out, 0o644); err != nil {
+	// 		slog.Error("profiles: write file", "err", err)
+	// 	} else {
+	// 		slog.Info("profiles payload written", "file", fname, "bytes", len(out))
+	// 	}
+
+	// 	w.WriteHeader(http.StatusAccepted)
+	// }))
 
 	mux.Handle("POST /v1/metrics", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := readBody(r)
