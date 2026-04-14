@@ -1,6 +1,7 @@
 package columnar
 
 import (
+	"errors"
 	"fmt"
 	"time"
 )
@@ -29,6 +30,9 @@ func (a Aggregation) OutputName() string {
 
 // Validate returns an error if the query parameters are invalid.
 func (q QueryParams) Validate() error {
+	if len(q.GroupBy) > 0 && len(q.Aggregations) == 0 {
+		return errors.New("aggregation required for groupby")
+	}
 	seen := make(map[string]struct{}, len(q.Select))
 	for _, col := range q.Select {
 		if _, ok := seen[col]; ok {
