@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+var (
+	ErrInvalidQuery = errors.New("query not valid")
+)
+
 type QueryParams struct {
 	Limit        int           `json:"limit"`
 	Select       []string      `json:"select"`
@@ -31,19 +35,19 @@ func (a Aggregation) OutputName() string {
 // Validate returns an error if the query parameters are invalid.
 func (q QueryParams) Validate() error {
 	if len(q.GroupBy) > 0 && len(q.Aggregations) == 0 {
-		return errors.New("aggregation required for groupby")
+		return fmt.Errorf("aggregation required for groupby: %w", ErrInvalidQuery)
 	}
 	seen := make(map[string]struct{}, len(q.Select))
 	for _, col := range q.Select {
 		if _, ok := seen[col]; ok {
-			return fmt.Errorf("duplicate column in select: %q", col)
+			return fmt.Errorf("duplicate column in select: %q: %w", col, ErrInvalidQuery)
 		}
 		seen[col] = struct{}{}
 	}
 	if len(q.Aggregations) > 0 {
 		for _, agg := range q.Aggregations {
 			if agg.Op != OpCount && agg.Column == "" {
-				return fmt.Errorf("aggregation %s missing column name", agg.Op)
+				return fmt.Errorf("aggregation %s missing column name: %w", agg.Op, ErrInvalidQuery)
 			}
 		}
 	}
