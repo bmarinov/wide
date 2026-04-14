@@ -55,5 +55,6 @@ type Column struct {
 // descriptors before any Row calls.
 type Sink interface {
 	Schema(columns []Column)
+	// Row emits a sparse record with nils in positions missing a column value.
 	Row(ts time.Time, values []any) (next bool)
 }
