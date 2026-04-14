@@ -3,9 +3,12 @@ package router
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -17,6 +20,30 @@ import (
 
 func newOTELMux(store *columnar.Store) *http.ServeMux {
 	mux := http.NewServeMux()
+
+	mux.Handle("POST /v1development/profiles", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := readBody(r)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		fname := fmt.Sprintf("./tmp/profiles_%d.json", time.Now().UnixNano())
+		var out []byte
+		var pretty bytes.Buffer
+		if json.Indent(&pretty, body, "", "  ") == nil {
+			out = pretty.Bytes()
+		} else {
+			out = body
+		}
+		if err := os.WriteFile(fname, out, 0o644); err != nil {
+			slog.Error("profiles: write file", "err", err)
+		} else {
+			slog.Info("profiles payload written", "file", fname, "bytes", len(out))
+		}
+
+		w.WriteHeader(http.StatusAccepted)
+	}))
 
 	mux.Handle("POST /v1/metrics", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := readBody(r)
@@ -117,6 +144,21 @@ func extractDataPoints(m pmetric.Metric, rKey string, resourceFields []columnar.
 		for i := range dps.Len() {
 			addDataPoint(m.Name(), dps.At(i), rKey, resourceFields, byTS)
 		}
+	// case pmetric.MetricTypeHistogram:
+	// 	dps := m.Histogram().DataPoints()
+	// 	for i := range dps.Len() {
+	// 		addHistogramDataPoint(m.Name(), dps.At(i), rKey, resourceFields, byTS)
+	// 	}
+	// case pmetric.MetricTypeExponentialHistogram:
+	// 	dps := m.ExponentialHistogram().DataPoints()
+	// 	for i := range dps.Len() {
+	// 		addExponentialHistogramDataPoint(m.Name(), dps.At(i), rKey, resourceFields, byTS)
+	// 	}
+	// case pmetric.MetricTypeSummary:
+	// 	dps := m.Summary().DataPoints()
+	// 	for i := range dps.Len() {
+	// 		addSummaryDataPoint(m.Name(), dps.At(i), rKey, resourceFields, byTS)
+	// 	}
 	default:
 		// TODO: handle all types
 		slog.Warn("unhandled metric type", "name", m.Name(), "type", m.Type())
