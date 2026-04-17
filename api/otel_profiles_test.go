@@ -18,6 +18,10 @@ import (
 // Change this constant if you change the dictionaries below.
 const knownStack = "main.main;runtime.goexit"
 
+// knownSampleCol is the value column name derived from the buildRequest dictionary:
+// StringTable[1]="cpu" + "_" + StringTable[2]="nanoseconds".
+const knownSampleCol = "cpu_nanoseconds"
+
 // buildRequest constructs a minimal but complete ProfilesData
 // with fully wired dictionaries so the resolved call stack is deterministic.
 //
@@ -125,14 +129,8 @@ func TestPivotProfiles_OneSampleProducesOneEvent(t *testing.T) {
 	if v, ok := findField(t, events[0], fieldStack); !ok || v == "" {
 		t.Errorf("expected non-empty %q field", fieldStack)
 	}
-	if _, ok := findField(t, events[0], fieldValue); !ok {
-		t.Errorf("expected %q field", fieldValue)
-	}
-	if v, ok := findField(t, events[0], fieldSampleType); !ok || v == "" {
-		t.Errorf("expected non-empty %q field", fieldSampleType)
-	}
-	if v, ok := findField(t, events[0], fieldSampleUnit); !ok || v == "" {
-		t.Errorf("expected non-empty %q field", fieldSampleUnit)
+	if _, ok := findField(t, events[0], knownSampleCol); !ok {
+		t.Errorf("expected value column %q", knownSampleCol)
 	}
 }
 
@@ -234,7 +232,11 @@ func TestPivotProfiles_Testdata(t *testing.T) {
 			if err := protojson.Unmarshal(body, req); err != nil {
 				t.Fatal(err)
 			}
-			// events := pivotProfiles(req)
+			events := pivotProfiles(req)
+			if len(events) == 0 {
+				t.Fatal("expected at least one event")
+			}
+
 			// len > 0
 			// every event: stack field non-empty
 			// every event: value field present and is int64

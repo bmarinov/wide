@@ -9,12 +9,9 @@ import (
 
 // field names as constants: proto version change = change here first
 const (
-	fieldStack      = "profile.stack"
-	fieldValue      = "profile.value"
-	fieldSampleType = "profile.sample_type"
-	fieldSampleUnit = "profile.sample_unit"
-	fieldTraceID    = "trace_id"
-	fieldSpanID     = "span_id"
+	fieldStack   = "profile.stack"
+	fieldTraceID = "trace_id"
+	fieldSpanID  = "span_id"
 )
 
 func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
@@ -27,6 +24,11 @@ func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 				sUnit := data.Dictionary.StringTable[st.UnitStrindex]
 
 				for _, sample := range profile.Samples {
+					// todo:
+					// sampleAttributes
+					// frames
+					// link -> trace/span id
+
 					// timestamps are collapsed to t0:
 					ts := sample.TimestampsUnixNano[0]
 
@@ -38,10 +40,7 @@ func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 					result = append(result, columnar.Event{
 						Timestamp: time.Unix(0, int64(ts)).UTC(),
 						Fields: []columnar.Field{
-							{
-								Name:  sType + "_" + sUnit,
-								Value: sample.Values[0],
-							},
+							{Name: sType + "_" + sUnit},
 						},
 					})
 				}
