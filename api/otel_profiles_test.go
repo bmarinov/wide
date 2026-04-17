@@ -19,8 +19,8 @@ import (
 const knownStack = "main.main;runtime.goexit"
 
 // knownSampleCol is the value column name derived from the buildRequest dictionary:
-// StringTable[1]="cpu" + "_" + StringTable[2]="nanoseconds".
-const knownSampleCol = "cpu_nanoseconds"
+// StringTable[1]="samples" + "_" + StringTable[2]="count".
+const knownSampleCol = "samples_count"
 
 // buildRequest constructs a minimal but complete ProfilesData
 // with fully wired dictionaries so the resolved call stack is deterministic.
@@ -30,7 +30,7 @@ const knownSampleCol = "cpu_nanoseconds"
 //
 // Dictionary layout:
 //
-//	StringTable:   0=""  1="cpu"  2="nanoseconds"  3="main.main"  4="runtime.goexit"  5="main.go"
+//	StringTable:   0=""  1="samples"  2="count"  3="main.main"  4="runtime.goexit"  5="main.go"
 //	FunctionTable: 0->str[3]="main.main"   1->str[4]="runtime.goexit"
 //	LocationTable: 0->func[0]   1->func[1]
 //	StackTable:    0->locs[0,1]   (leaf=loc0=main.main, root=loc1=runtime.goexit)
@@ -45,8 +45,8 @@ func buildRequest(samples []*v1development.Sample, resourceAttrs map[string]stri
 	dict := &v1development.ProfilesDictionary{
 		StringTable: []string{
 			"",               // 0: pprof convention, index 0 is always empty
-			"cpu",            // 1: sample type name
-			"nanoseconds",    // 2: sample unit
+			"samples",        // 1: sample type name
+			"count",          // 2: sample unit
 			"main.main",      // 3: leaf function name
 			"runtime.goexit", // 4: root function name
 			"main.go",        // 5: source file
@@ -65,7 +65,7 @@ func buildRequest(samples []*v1development.Sample, resourceAttrs map[string]stri
 	}
 
 	if samples == nil {
-		samples = []*v1development.Sample{oneSample(10_000, 1_000_000_000)}
+		samples = []*v1development.Sample{oneSample(1_000_000_000)}
 	}
 
 	profile := &v1development.Profile{
@@ -98,11 +98,11 @@ func buildRequest(samples []*v1development.Sample, resourceAttrs map[string]stri
 }
 
 // oneSample returns a Sample pointing at StackTable[0] (the deterministic
-// knownStack) with the given CPU value and nanosecond timestamp.
-func oneSample(valueNanos int64, timestampNano uint64) *v1development.Sample {
+// knownStack) with a single timestamp and no explicit value, the eBPF shape.
+// The implicit count per observation is 1.
+func oneSample(timestampNano uint64) *v1development.Sample {
 	return &v1development.Sample{
 		StackIndex:         0,
-		Values:             []int64{valueNanos},
 		TimestampsUnixNano: []uint64{timestampNano},
 	}
 }
@@ -121,7 +121,7 @@ func findField(t *testing.T, e columnar.Event, name string) (any, bool) {
 var fixedTS = uint64(time.Now().Truncate(time.Microsecond).UnixNano())
 
 func TestPivotProfiles_OneSampleProducesOneEvent(t *testing.T) {
-	events := pivotProfiles(buildRequest([]*v1development.Sample{oneSample(50_000_000, fixedTS)}, nil))
+	events := pivotProfiles(buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil))
 
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
@@ -129,13 +129,13 @@ func TestPivotProfiles_OneSampleProducesOneEvent(t *testing.T) {
 	if v, ok := findField(t, events[0], fieldStack); !ok || v == "" {
 		t.Errorf("expected non-empty %q field", fieldStack)
 	}
-	if _, ok := findField(t, events[0], knownSampleCol); !ok {
-		t.Errorf("expected value column %q", knownSampleCol)
+	if v, ok := findField(t, events[0], knownSampleCol); !ok || v != int64(1) {
+		t.Errorf("expected %q = 1 (implicit count), got %v", knownSampleCol, v)
 	}
 }
 
 func TestPivotProfiles_StackResolvesToKnownCallChain(t *testing.T) {
-	events := pivotProfiles(buildRequest([]*v1development.Sample{oneSample(50_000_000, fixedTS)}, nil))
+	events := pivotProfiles(buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil))
 
 	v, ok := findField(t, events[0], fieldStack)
 	if !ok {
@@ -148,9 +148,9 @@ func TestPivotProfiles_StackResolvesToKnownCallChain(t *testing.T) {
 
 func TestPivotProfiles_MultipleSamplesProduceOneEventEach(t *testing.T) {
 	events := pivotProfiles(buildRequest([]*v1development.Sample{
-		oneSample(50_000_000, fixedTS),
-		oneSample(12_500_000, fixedTS+1_000_000_000),
-		oneSample(75_000_000, fixedTS+2_000_000_000),
+		oneSample(fixedTS),
+		oneSample(fixedTS + 1_000_000_000),
+		oneSample(fixedTS + 2_000_000_000),
 	}, nil))
 
 	if len(events) != 3 {
@@ -160,7 +160,7 @@ func TestPivotProfiles_MultipleSamplesProduceOneEventEach(t *testing.T) {
 
 func TestPivotProfiles_ResourceAttributesFlowToEveryEvent(t *testing.T) {
 	events := pivotProfiles(buildRequest(
-		[]*v1development.Sample{oneSample(50_000_000, fixedTS), oneSample(25_000_000, fixedTS+1_000_000_000)},
+		[]*v1development.Sample{oneSample(fixedTS), oneSample(fixedTS + 1_000_000_000)},
 		map[string]string{
 			"process.executable.name": "columnstore",
 			"service.name":            "sandbox-columnstore",
@@ -178,7 +178,7 @@ func TestPivotProfiles_ResourceAttributesFlowToEveryEvent(t *testing.T) {
 }
 
 func TestPivotProfiles_SampleTimestampUsedWhenPresent(t *testing.T) {
-	events := pivotProfiles(buildRequest([]*v1development.Sample{oneSample(50_000_000, fixedTS)}, nil))
+	events := pivotProfiles(buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil))
 
 	want := time.Unix(0, int64(fixedTS)).UTC()
 	if !events[0].Timestamp.Equal(want) {
@@ -188,7 +188,7 @@ func TestPivotProfiles_SampleTimestampUsedWhenPresent(t *testing.T) {
 
 func TestPivotProfiles_ProfileTimeFallsBackWhenSampleHasNoTimestamp(t *testing.T) {
 	// sample with no TimestampsUnixNano, must fall back to Profile.TimeUnixNano
-	req := buildRequest([]*v1development.Sample{{StackIndex: 0, Values: []int64{50_000_000}}}, nil)
+	req := buildRequest([]*v1development.Sample{{StackIndex: 0, Values: []int64{1}}}, nil)
 	req.ResourceProfiles[0].ScopeProfiles[0].Profiles[0].TimeUnixNano = fixedTS
 
 	events := pivotProfiles(req)
@@ -210,7 +210,7 @@ func TestPivotProfiles_ZeroSamplesProducesZeroEvents(t *testing.T) {
 func TestPivotProfiles_LinkIndexResolvesTraceAndSpanID(t *testing.T) {
 	traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
 	spanID := []byte{0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7}
-	req := buildRequest([]*v1development.Sample{{StackIndex: 0, Values: []int64{50_000_000}, LinkIndex: 0}}, nil)
+	req := buildRequest([]*v1development.Sample{{StackIndex: 0, TimestampsUnixNano: []uint64{fixedTS}, LinkIndex: 0}}, nil)
 	req.Dictionary.LinkTable = []*v1development.Link{{TraceId: traceID, SpanId: spanID}}
 
 	events := pivotProfiles(req)
