@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/bmarinov/sandbox-columnstore/internal/columnar"
-	collpb "go.opentelemetry.io/proto/slim/otlp/collector/profiles/v1development"
+	"go.opentelemetry.io/proto/otlp/profiles/v1development"
 )
 
 // field names as constants: proto version change = change here first
@@ -17,14 +17,14 @@ const (
 	fieldSpanID     = "span_id"
 )
 
-func pivotProfiles(req *collpb.ExportProfilesServiceRequest) []columnar.Event {
+func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 	var result []columnar.Event
-	for _, prof := range req.GetResourceProfiles() {
+	for _, prof := range data.GetResourceProfiles() {
 		for _, scopeProf := range prof.ScopeProfiles {
 			for _, profile := range scopeProf.Profiles {
 				st := profile.SampleType
-				sType := req.Dictionary.StringTable[st.TypeStrindex]
-				sUnit := req.Dictionary.StringTable[st.UnitStrindex]
+				sType := data.Dictionary.StringTable[st.TypeStrindex]
+				sUnit := data.Dictionary.StringTable[st.UnitStrindex]
 
 				for _, sample := range profile.Samples {
 					// timestamps are collapsed to t0:

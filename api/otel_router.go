@@ -13,10 +13,8 @@ import (
 	"github.com/bmarinov/sandbox-columnstore/internal/columnar"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
-	collpb "go.opentelemetry.io/proto/slim/otlp/collector/profiles/v1development"
-	_ "go.opentelemetry.io/proto/slim/otlp/profiles/v1development"
+	"go.opentelemetry.io/proto/otlp/profiles/v1development"
 	"google.golang.org/protobuf/encoding/protojson"
-	// profilespb "go.opentelemetry.io/proto/slim/otlp/profiles/v1development"
 )
 
 func newOTELMux(store *columnar.Store) *http.ServeMux {
@@ -29,7 +27,7 @@ func newOTELMux(store *columnar.Store) *http.ServeMux {
 			return
 		}
 
-		req := collpb.ExportProfilesServiceRequest{}
+		req := v1development.ProfilesData{}
 		err = protojson.Unmarshal(body, &req)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)

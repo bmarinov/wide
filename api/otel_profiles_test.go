@@ -7,10 +7,9 @@ import (
 	"time"
 
 	"github.com/bmarinov/sandbox-columnstore/internal/columnar"
-	collpb "go.opentelemetry.io/proto/slim/otlp/collector/profiles/v1development"
-	commonpb "go.opentelemetry.io/proto/slim/otlp/common/v1"
-	profilespb "go.opentelemetry.io/proto/slim/otlp/profiles/v1development"
-	resourcepb "go.opentelemetry.io/proto/slim/otlp/resource/v1"
+	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
+	"go.opentelemetry.io/proto/otlp/profiles/v1development"
+	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
@@ -19,7 +18,7 @@ import (
 // Change this constant if you change the dictionaries below.
 const knownStack = "main.main;runtime.goexit"
 
-// buildRequest constructs a minimal but complete ExportProfilesServiceRequest
+// buildRequest constructs a minimal but complete ProfilesData
 // with fully wired dictionaries so the resolved call stack is deterministic.
 //
 // In v0.2.0 the ProfilesDictionary lives at the REQUEST level (not per-profile).
@@ -38,8 +37,8 @@ const knownStack = "main.main;runtime.goexit"
 //	-> LocationTable[0].Lines[0].FunctionIndex=0 -> StringTable[3] = "main.main"
 //	-> LocationTable[1].Lines[0].FunctionIndex=1 -> StringTable[4] = "runtime.goexit"
 //	-> "main.main;runtime.goexit"
-func buildRequest(samples []*profilespb.Sample, resourceAttrs map[string]string) *collpb.ExportProfilesServiceRequest {
-	dict := &profilespb.ProfilesDictionary{
+func buildRequest(samples []*v1development.Sample, resourceAttrs map[string]string) *v1development.ProfilesData {
+	dict := &v1development.ProfilesDictionary{
 		StringTable: []string{
 			"",               // 0: pprof convention, index 0 is always empty
 			"cpu",            // 1: sample type name
@@ -48,46 +47,46 @@ func buildRequest(samples []*profilespb.Sample, resourceAttrs map[string]string)
 			"runtime.goexit", // 4: root function name
 			"main.go",        // 5: source file
 		},
-		FunctionTable: []*profilespb.Function{
+		FunctionTable: []*v1development.Function{
 			{NameStrindex: 3, FilenameStrindex: 5}, // 0: main.main
 			{NameStrindex: 4, FilenameStrindex: 5}, // 1: runtime.goexit
 		},
-		LocationTable: []*profilespb.Location{
-			{Lines: []*profilespb.Line{{FunctionIndex: 0}}}, // 0 -> main.main
-			{Lines: []*profilespb.Line{{FunctionIndex: 1}}}, // 1 -> runtime.goexit
+		LocationTable: []*v1development.Location{
+			{Lines: []*v1development.Line{{FunctionIndex: 0}}}, // 0 -> main.main
+			{Lines: []*v1development.Line{{FunctionIndex: 1}}}, // 1 -> runtime.goexit
 		},
-		StackTable: []*profilespb.Stack{
+		StackTable: []*v1development.Stack{
 			{LocationIndices: []int32{0, 1}}, // 0: leaf-first -> main.main;runtime.goexit
 		},
 	}
 
 	if samples == nil {
-		samples = []*profilespb.Sample{oneSample(10_000, 1_000_000_000)}
+		samples = []*v1development.Sample{oneSample(10_000, 1_000_000_000)}
 	}
 
-	profile := &profilespb.Profile{
-		SampleType: &profilespb.ValueType{TypeStrindex: 1, UnitStrindex: 2},
+	profile := &v1development.Profile{
+		SampleType: &v1development.ValueType{TypeStrindex: 1, UnitStrindex: 2},
 		Samples:    samples,
 	}
 
 	if resourceAttrs == nil {
 		resourceAttrs = map[string]string{}
 	}
-	attrs := make([]*commonpb.KeyValue, 0, len(resourceAttrs))
+	attrs := make([]*commonv1.KeyValue, 0, len(resourceAttrs))
 	for k, v := range resourceAttrs {
-		attrs = append(attrs, &commonpb.KeyValue{
+		attrs = append(attrs, &commonv1.KeyValue{
 			Key:   k,
-			Value: &commonpb.AnyValue{Value: &commonpb.AnyValue_StringValue{StringValue: v}},
+			Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: v}},
 		})
 	}
 
-	return &collpb.ExportProfilesServiceRequest{
+	return &v1development.ProfilesData{
 		Dictionary: dict,
-		ResourceProfiles: []*profilespb.ResourceProfiles{
+		ResourceProfiles: []*v1development.ResourceProfiles{
 			{
-				Resource: &resourcepb.Resource{Attributes: attrs},
-				ScopeProfiles: []*profilespb.ScopeProfiles{
-					{Profiles: []*profilespb.Profile{profile}},
+				Resource: &resourcev1.Resource{Attributes: attrs},
+				ScopeProfiles: []*v1development.ScopeProfiles{
+					{Profiles: []*v1development.Profile{profile}},
 				},
 			},
 		},
@@ -96,8 +95,8 @@ func buildRequest(samples []*profilespb.Sample, resourceAttrs map[string]string)
 
 // oneSample returns a Sample pointing at StackTable[0] (the deterministic
 // knownStack) with the given CPU value and nanosecond timestamp.
-func oneSample(valueNanos int64, timestampNano uint64) *profilespb.Sample {
-	return &profilespb.Sample{
+func oneSample(valueNanos int64, timestampNano uint64) *v1development.Sample {
+	return &v1development.Sample{
 		StackIndex:         0,
 		Values:             []int64{valueNanos},
 		TimestampsUnixNano: []uint64{timestampNano},
@@ -118,7 +117,7 @@ func findField(t *testing.T, e columnar.Event, name string) (any, bool) {
 var fixedTS = uint64(time.Now().Truncate(time.Microsecond).UnixNano())
 
 func TestPivotProfiles_OneSampleProducesOneEvent(t *testing.T) {
-	events := pivotProfiles(buildRequest([]*profilespb.Sample{oneSample(50_000_000, fixedTS)}, nil))
+	events := pivotProfiles(buildRequest([]*v1development.Sample{oneSample(50_000_000, fixedTS)}, nil))
 
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
@@ -138,7 +137,7 @@ func TestPivotProfiles_OneSampleProducesOneEvent(t *testing.T) {
 }
 
 func TestPivotProfiles_StackResolvesToKnownCallChain(t *testing.T) {
-	events := pivotProfiles(buildRequest([]*profilespb.Sample{oneSample(50_000_000, fixedTS)}, nil))
+	events := pivotProfiles(buildRequest([]*v1development.Sample{oneSample(50_000_000, fixedTS)}, nil))
 
 	v, ok := findField(t, events[0], fieldStack)
 	if !ok {
@@ -150,7 +149,7 @@ func TestPivotProfiles_StackResolvesToKnownCallChain(t *testing.T) {
 }
 
 func TestPivotProfiles_MultipleSamplesProduceOneEventEach(t *testing.T) {
-	events := pivotProfiles(buildRequest([]*profilespb.Sample{
+	events := pivotProfiles(buildRequest([]*v1development.Sample{
 		oneSample(50_000_000, fixedTS),
 		oneSample(12_500_000, fixedTS+1_000_000_000),
 		oneSample(75_000_000, fixedTS+2_000_000_000),
@@ -163,7 +162,7 @@ func TestPivotProfiles_MultipleSamplesProduceOneEventEach(t *testing.T) {
 
 func TestPivotProfiles_ResourceAttributesFlowToEveryEvent(t *testing.T) {
 	events := pivotProfiles(buildRequest(
-		[]*profilespb.Sample{oneSample(50_000_000, fixedTS), oneSample(25_000_000, fixedTS+1_000_000_000)},
+		[]*v1development.Sample{oneSample(50_000_000, fixedTS), oneSample(25_000_000, fixedTS+1_000_000_000)},
 		map[string]string{
 			"process.executable.name": "columnstore",
 			"service.name":            "sandbox-columnstore",
@@ -181,7 +180,7 @@ func TestPivotProfiles_ResourceAttributesFlowToEveryEvent(t *testing.T) {
 }
 
 func TestPivotProfiles_SampleTimestampUsedWhenPresent(t *testing.T) {
-	events := pivotProfiles(buildRequest([]*profilespb.Sample{oneSample(50_000_000, fixedTS)}, nil))
+	events := pivotProfiles(buildRequest([]*v1development.Sample{oneSample(50_000_000, fixedTS)}, nil))
 
 	want := time.Unix(0, int64(fixedTS)).UTC()
 	if !events[0].Timestamp.Equal(want) {
@@ -191,7 +190,7 @@ func TestPivotProfiles_SampleTimestampUsedWhenPresent(t *testing.T) {
 
 func TestPivotProfiles_ProfileTimeFallsBackWhenSampleHasNoTimestamp(t *testing.T) {
 	// sample with no TimestampsUnixNano, must fall back to Profile.TimeUnixNano
-	req := buildRequest([]*profilespb.Sample{{StackIndex: 0, Values: []int64{50_000_000}}}, nil)
+	req := buildRequest([]*v1development.Sample{{StackIndex: 0, Values: []int64{50_000_000}}}, nil)
 	req.ResourceProfiles[0].ScopeProfiles[0].Profiles[0].TimeUnixNano = fixedTS
 
 	events := pivotProfiles(req)
@@ -203,7 +202,7 @@ func TestPivotProfiles_ProfileTimeFallsBackWhenSampleHasNoTimestamp(t *testing.T
 }
 
 func TestPivotProfiles_ZeroSamplesProducesZeroEvents(t *testing.T) {
-	events := pivotProfiles(buildRequest([]*profilespb.Sample{}, nil))
+	events := pivotProfiles(buildRequest([]*v1development.Sample{}, nil))
 
 	if len(events) != 0 {
 		t.Errorf("expected 0 events, got %d", len(events))
@@ -213,8 +212,8 @@ func TestPivotProfiles_ZeroSamplesProducesZeroEvents(t *testing.T) {
 func TestPivotProfiles_LinkIndexResolvesTraceAndSpanID(t *testing.T) {
 	traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
 	spanID := []byte{0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7}
-	req := buildRequest([]*profilespb.Sample{{StackIndex: 0, Values: []int64{50_000_000}, LinkIndex: 0}}, nil)
-	req.Dictionary.LinkTable = []*profilespb.Link{{TraceId: traceID, SpanId: spanID}}
+	req := buildRequest([]*v1development.Sample{{StackIndex: 0, Values: []int64{50_000_000}, LinkIndex: 0}}, nil)
+	req.Dictionary.LinkTable = []*v1development.Link{{TraceId: traceID, SpanId: spanID}}
 
 	events := pivotProfiles(req)
 
@@ -231,7 +230,7 @@ func TestPivotProfiles_Testdata(t *testing.T) {
 	for _, f := range files {
 		t.Run(filepath.Base(f), func(t *testing.T) {
 			body, _ := os.ReadFile(f)
-			req := &collpb.ExportProfilesServiceRequest{}
+			req := &v1development.ProfilesData{}
 			if err := protojson.Unmarshal(body, req); err != nil {
 				t.Fatal(err)
 			}
