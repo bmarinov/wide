@@ -26,14 +26,16 @@ func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 				sUnit := data.Dictionary.StringTable[st.UnitStrindex]
 
 				for _, sample := range profile.Samples {
-					// todo: unsafe, else take from other field:
-					ts := sample.TimestampsUnixNano[0]
+
 					event := columnar.Event{
-						Timestamp: time.Unix(0, int64(ts)).UTC(),
 						Fields: []columnar.Field{
 							{Name: sType + "_" + sUnit},
 						}}
-
+					if len(sample.TimestampsUnixNano) == 0 {
+						event.Timestamp = time.Unix(0, int64(profile.TimeUnixNano)).UTC()
+					} else {
+						event.Timestamp = time.Unix(0, int64(sample.TimestampsUnixNano[0])).UTC()
+					}
 					for _, attrKV := range rProf.Resource.Attributes {
 						event.Fields = append(event.Fields, columnar.Field{
 							Name:  attrKV.Key,
@@ -42,13 +44,6 @@ func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 					}
 					// frames
 					// link -> trace/span id
-
-					// timestamps are collapsed to t0:
-
-					for _, sampleVal := range sample.Values {
-						// dummy code
-						_ = sampleVal
-					}
 
 					result = append(result, event)
 				}
