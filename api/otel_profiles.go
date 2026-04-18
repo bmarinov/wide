@@ -26,26 +26,60 @@ func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 				sUnit := data.Dictionary.StringTable[st.UnitStrindex]
 
 				for _, sample := range profile.Samples {
+					// capacity = attrs + name/value + stack:
+					baseFields := make([]columnar.Field, 0, 2+len(rProf.Resource.Attributes))
 
-					event := columnar.Event{
-						Fields: []columnar.Field{
-							{Name: sType + "_" + sUnit},
-						}}
-					if len(sample.TimestampsUnixNano) == 0 {
-						event.Timestamp = time.Unix(0, int64(profile.TimeUnixNano)).UTC()
-					} else {
-						event.Timestamp = time.Unix(0, int64(sample.TimestampsUnixNano[0])).UTC()
-					}
 					for _, attrKV := range rProf.Resource.Attributes {
-						event.Fields = append(event.Fields, columnar.Field{
-							Name:  attrKV.Key,
-							Value: anyValue(attrKV.Value, data.Dictionary),
+						key := attrKV.GetKey()
+						if key == "" {
+							key = dictStr(data.Dictionary, attrKV.KeyStrindex)
+						}
+						val := anyValue(attrKV.Value, data.Dictionary)
+						baseFields = append(baseFields, columnar.Field{
+							Name:  key,
+							Value: val,
 						})
 					}
+
+					if len(sample.TimestampsUnixNano) > 0 && len(sample.Values) == 0 {
+						// ts-only shape
+						for _, sampleTS := range sample.TimestampsUnixNano {
+							result = append(result, columnar.Event{
+								Timestamp: time.Unix(0, int64(sampleTS)).UTC(),
+								Fields: append(baseFields, columnar.Field{
+									Name:  sType + "_" + sUnit,
+									Value: int64(1),
+								}),
+							})
+						}
+					} else if len(sample.TimestampsUnixNano) == len(sample.Values) &&
+						len(sample.TimestampsUnixNano) > 0 {
+						// zip
+						for i, sampleTS := range sample.TimestampsUnixNano {
+							row := columnar.Event{
+								Timestamp: time.Unix(0, int64(sampleTS)).UTC(),
+								Fields:    make([]columnar.Field, len(baseFields)+1),
+							}
+							copy(row.Fields, baseFields)
+							row.Fields[len(row.Fields)-1] = columnar.Field{Name: sType + "_" + sUnit, Value: sample.Values[i]}
+							result = append(result, row)
+						}
+					} else if len(sample.Values) == 1 && len(sample.TimestampsUnixNano) == 0 {
+						// aggregated
+						result = append(result, columnar.Event{
+							Timestamp: time.Unix(0, int64(profile.TimeUnixNano)).UTC(),
+							Fields: append(baseFields, columnar.Field{
+								Name:  sType + "_" + sUnit,
+								Value: sample.Values[0],
+							}),
+						})
+					} else {
+						// unknown shape
+						// slog.Error()
+					}
+
 					// frames
 					// link -> trace/span id
-
-					result = append(result, event)
 				}
 			}
 		}

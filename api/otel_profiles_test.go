@@ -22,15 +22,15 @@ const knownStack = "main.main;runtime.goexit"
 // StringTable[1]="samples" + "_" + StringTable[2]="count".
 const knownSampleCol = "samples_count"
 
-// buildRequest constructs a minimal but complete ProfilesData
-// with fully wired dictionaries so the resolved call stack is deterministic.
+// buildRequest constructs a minimal but complete ProfilesData whose encoding
+// matches what protojson.Unmarshal produces from real eBPF profiler payloads:
+// all strings go through the shared dictionary, attribute keys and values are
+// stored as StringTable indices (KeyStrindex / StringValueStrindex), never inline.
 //
-// In v0.2.0 the ProfilesDictionary lives at the REQUEST level (not per-profile).
-// All profiles and samples in the request share this single dictionary.
+// Base StringTable layout (indices 0–5 are fixed; resource attr strings are
+// appended dynamically by intern()):
 //
-// Dictionary layout:
-//
-//	StringTable:   0=""  1="samples"  2="count"  3="main.main"  4="runtime.goexit"  5="main.go"
+//	0=""  1="samples"  2="count"  3="main.main"  4="runtime.goexit"  5="main.go"
 //	FunctionTable: 0->str[3]="main.main"   1->str[4]="runtime.goexit"
 //	LocationTable: 0->func[0]   1->func[1]
 //	StackTable:    0->locs[0,1]   (leaf=loc0=main.main, root=loc1=runtime.goexit)
@@ -42,55 +42,66 @@ const knownSampleCol = "samples_count"
 //	-> LocationTable[1].Lines[0].FunctionIndex=1 -> StringTable[4] = "runtime.goexit"
 //	-> "main.main;runtime.goexit"
 func buildRequest(samples []*v1development.Sample, resourceAttrs map[string]string) *v1development.ProfilesData {
-	dict := &v1development.ProfilesDictionary{
-		StringTable: []string{
-			"",               // 0: pprof convention, index 0 is always empty
-			"samples",        // 1: sample type name
-			"count",          // 2: sample unit
-			"main.main",      // 3: leaf function name
-			"runtime.goexit", // 4: root function name
-			"main.go",        // 5: source file
-		},
-		FunctionTable: []*v1development.Function{
-			{NameStrindex: 3, FilenameStrindex: 5}, // 0: main.main
-			{NameStrindex: 4, FilenameStrindex: 5}, // 1: runtime.goexit
-		},
-		LocationTable: []*v1development.Location{
-			{Lines: []*v1development.Line{{FunctionIndex: 0}}}, // 0 -> main.main
-			{Lines: []*v1development.Line{{FunctionIndex: 1}}}, // 1 -> runtime.goexit
-		},
-		StackTable: []*v1development.Stack{
-			{LocationIndices: []int32{0, 1}}, // 0: leaf-first -> main.main;runtime.goexit
-		},
+	strs := []string{
+		"",               // 0: sentinel, index 0 is always empty
+		"samples",        // 1: sample type name
+		"count",          // 2: sample unit
+		"main.main",      // 3: leaf function name
+		"runtime.goexit", // 4: root function name
+		"main.go",        // 5: source file
+	}
+
+	// intern appends s to strs if not present and returns its index.
+	intern := func(s string) int32 {
+		for i, v := range strs {
+			if v == s {
+				return int32(i)
+			}
+		}
+		idx := int32(len(strs))
+		strs = append(strs, s)
+		return idx
+	}
+
+	// Resource attrs: key and string value both go through the string table,
+	// matching the KeyStrindex / StringValueStrindex encoding protojson produces.
+	attrs := make([]*commonv1.KeyValue, 0, len(resourceAttrs))
+	for k, v := range resourceAttrs {
+		attrs = append(attrs, &commonv1.KeyValue{
+			KeyStrindex: intern(k),
+			Value: &commonv1.AnyValue{
+				Value: &commonv1.AnyValue_StringValueStrindex{StringValueStrindex: intern(v)},
+			},
+		})
 	}
 
 	if samples == nil {
 		samples = []*v1development.Sample{oneSample(1_000_000_000)}
 	}
 
-	profile := &v1development.Profile{
-		SampleType: &v1development.ValueType{TypeStrindex: 1, UnitStrindex: 2},
-		Samples:    samples,
-	}
-
-	if resourceAttrs == nil {
-		resourceAttrs = map[string]string{}
-	}
-	attrs := make([]*commonv1.KeyValue, 0, len(resourceAttrs))
-	for k, v := range resourceAttrs {
-		attrs = append(attrs, &commonv1.KeyValue{
-			Key:   k,
-			Value: &commonv1.AnyValue{Value: &commonv1.AnyValue_StringValue{StringValue: v}},
-		})
-	}
-
 	return &v1development.ProfilesData{
-		Dictionary: dict,
+		Dictionary: &v1development.ProfilesDictionary{
+			StringTable: strs, // built above; resource attr strings appended by intern()
+			FunctionTable: []*v1development.Function{
+				{NameStrindex: 3, FilenameStrindex: 5}, // 0: main.main
+				{NameStrindex: 4, FilenameStrindex: 5}, // 1: runtime.goexit
+			},
+			LocationTable: []*v1development.Location{
+				{Lines: []*v1development.Line{{FunctionIndex: 0}}}, // 0 -> main.main
+				{Lines: []*v1development.Line{{FunctionIndex: 1}}}, // 1 -> runtime.goexit
+			},
+			StackTable: []*v1development.Stack{
+				{LocationIndices: []int32{0, 1}}, // 0: leaf-first -> main.main;runtime.goexit
+			},
+		},
 		ResourceProfiles: []*v1development.ResourceProfiles{
 			{
 				Resource: &resourcev1.Resource{Attributes: attrs},
 				ScopeProfiles: []*v1development.ScopeProfiles{
-					{Profiles: []*v1development.Profile{profile}},
+					{Profiles: []*v1development.Profile{{
+						SampleType: &v1development.ValueType{TypeStrindex: 1, UnitStrindex: 2},
+						Samples:    samples,
+					}}},
 				},
 			},
 		},
@@ -143,6 +154,53 @@ func TestPivotProfiles_StackResolvesToKnownCallChain(t *testing.T) {
 	}
 	if v != knownStack {
 		t.Errorf("stack: got %q, want %q", v, knownStack)
+	}
+}
+
+func TestPivotProfiles_TsOnlyMultipleTimestampsInOneSample(t *testing.T) {
+	// One sample carrying three timestamps, the ts-only shape allows this.
+	// Each timestamp must expand to its own event.
+	sample := &v1development.Sample{
+		StackIndex:         0,
+		TimestampsUnixNano: []uint64{fixedTS, fixedTS + 1_000_000_000, fixedTS + 2_000_000_000},
+	}
+	events := pivotProfiles(buildRequest([]*v1development.Sample{sample}, nil))
+
+	if len(events) != 3 {
+		t.Fatalf("expected 3 events (one per timestamp), got %d", len(events))
+	}
+	for i, want := range []uint64{fixedTS, fixedTS + 1_000_000_000, fixedTS + 2_000_000_000} {
+		wantT := time.Unix(0, int64(want)).UTC()
+		if !events[i].Timestamp.Equal(wantT) {
+			t.Errorf("event %d: timestamp got %v, want %v", i, events[i].Timestamp, wantT)
+		}
+	}
+}
+
+func TestPivotProfiles_ZipShapeMultiTsValues(t *testing.T) {
+	sample := &v1development.Sample{
+		StackIndex:         0,
+		TimestampsUnixNano: []uint64{fixedTS, fixedTS + uint64(time.Minute), fixedTS + 2*uint64(time.Minute)},
+		Values:             []int64{25, 33, 424},
+	}
+	events := pivotProfiles(buildRequest([]*v1development.Sample{sample}, nil))
+
+	if len(events) != 3 {
+		t.Fatalf("expected 3 events (one per timestamp), got %d", len(events))
+	}
+	for i := range len(events) {
+		expectedTime := time.Unix(0, int64(sample.TimestampsUnixNano[i])).UTC()
+		expectedVal := sample.Values[i]
+		if !events[i].Timestamp.Equal(expectedTime) {
+			t.Errorf("event %d: timestamp got %v, want %v", i, events[i].Timestamp, expectedTime)
+		}
+		actualV, got := findField(t, events[i], knownSampleCol)
+		if !got {
+			t.Fatalf("field %s not found on %v", knownSampleCol, events[i])
+		}
+		if actualV != expectedVal {
+			t.Errorf("event %d: val got %v, want %v", i, actualV, expectedVal)
+		}
 	}
 }
 
