@@ -1,4 +1,4 @@
-package router
+package otlp
 
 import (
 	"encoding/hex"
@@ -24,7 +24,7 @@ const (
 	nativeFrame = "<unknown>"
 )
 
-func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
+func PivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 	if data.Dictionary == nil {
 		// invalid data
 		return nil

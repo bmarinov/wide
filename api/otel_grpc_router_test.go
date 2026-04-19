@@ -7,14 +7,17 @@ import (
 	collectorv1 "go.opentelemetry.io/proto/otlp/collector/profiles/v1development"
 
 	"github.com/bmarinov/sandbox-columnstore/internal/columnar"
+	"github.com/bmarinov/sandbox-columnstore/internal/otlp"
 	"go.opentelemetry.io/proto/otlp/profiles/v1development"
 )
 
+var fixedTS = uint64(time.Now().Truncate(time.Microsecond).UnixNano())
+
 func TestGRPCProfilesExport_SamplesLandInStore(t *testing.T) {
-	req := buildRequest([]*v1development.Sample{
-		oneSample(fixedTS),
-		oneSample(fixedTS + uint64(time.Second)),
-		oneSample(fixedTS + 2*uint64(time.Second)),
+	req := otlp.BuildProfilesRequest([]*v1development.Sample{
+		otlp.OneSample(fixedTS),
+		otlp.OneSample(fixedTS + uint64(time.Second)),
+		otlp.OneSample(fixedTS + 2*uint64(time.Second)),
 	}, map[string]string{"service.name": "test-svc"})
 
 	s := columnar.New(t.Context(), columnar.Config{})
@@ -43,7 +46,7 @@ func TestGRPCProfilesExport_EmptyPayload_ReturnsNoError(t *testing.T) {
 }
 
 func TestGRPCProfilesExport_NilDictionary_StoresNoEvents(t *testing.T) {
-	req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
+	req := otlp.BuildProfilesRequest([]*v1development.Sample{otlp.OneSample(fixedTS)}, nil)
 	req.Dictionary = nil
 
 	s := columnar.New(t.Context(), columnar.Config{})

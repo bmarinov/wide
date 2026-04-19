@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/bmarinov/sandbox-columnstore/internal/columnar"
+	"github.com/bmarinov/sandbox-columnstore/internal/otlp"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/proto/otlp/profiles/v1development"
@@ -33,7 +34,7 @@ func newOTELMux(store *columnar.Store) *http.ServeMux {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		events := pivotProfiles(&req)
+		events := otlp.PivotProfiles(&req)
 		for _, v := range events {
 			err := store.Receive(r.Context(), v, nil)
 			if err != nil {
@@ -45,30 +46,6 @@ func newOTELMux(store *columnar.Store) *http.ServeMux {
 		w.WriteHeader(http.StatusAccepted)
 
 	}))
-
-	// mux.Handle("POST /v1development/profiles", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-	// 	body, err := readBody(r)
-	// 	if err != nil {
-	// 		w.WriteHeader(http.StatusBadRequest)
-	// 		return
-	// 	}
-
-	// 	fname := fmt.Sprintf("./tmp/profiles_%d.json", time.Now().UnixNano())
-	// 	var out []byte
-	// 	var pretty bytes.Buffer
-	// 	if json.Indent(&pretty, body, "", "  ") == nil {
-	// 		out = pretty.Bytes()
-	// 	} else {
-	// 		out = body
-	// 	}
-	// 	if err := os.WriteFile(fname, out, 0o644); err != nil {
-	// 		slog.Error("profiles: write file", "err", err)
-	// 	} else {
-	// 		slog.Info("profiles payload written", "file", fname, "bytes", len(out))
-	// 	}
-
-	// 	w.WriteHeader(http.StatusAccepted)
-	// }))
 
 	mux.Handle("POST /v1/metrics", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := readBody(r)
