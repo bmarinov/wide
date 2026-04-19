@@ -68,7 +68,10 @@ func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 					if sample.StackIndex > 0 &&
 						len(data.Dictionary.StackTable) > int(sample.StackIndex) {
 						stack := data.Dictionary.StackTable[sample.StackIndex]
-						var frames []string
+						var b strings.Builder
+
+						// prealloc: 16 bytes for each frame name (on the lower side):
+						b.Grow(len(stack.LocationIndices) * 16)
 
 						for _, locIdx := range stack.LocationIndices {
 							loc := dictLookup(data.Dictionary.LocationTable, locIdx)
@@ -76,21 +79,25 @@ func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 								continue
 							}
 							if len(loc.Lines) == 0 {
-								frames = append(frames, nativeFrame)
+								if b.Len() > 0 {
+									b.WriteByte(stackDelim)
+								}
+								b.WriteString(nativeFrame)
 							} else {
 								for _, stackLine := range loc.Lines {
 									fn := dictLookup(data.Dictionary.FunctionTable, stackLine.FunctionIndex)
 									if fn == nil {
 										continue
 									}
-									fnName := dictStr(data.Dictionary, fn.NameStrindex)
-									// todo: null check
-									frames = append(frames, fnName)
+									if b.Len() > 0 {
+										b.WriteByte(stackDelim)
+									}
+									b.WriteString(dictStr(data.Dictionary, fn.NameStrindex))
 								}
 							}
 						}
 						baseFields = append(baseFields,
-							columnar.Field{Name: fieldStack, Value: strings.Join(frames, string(stackDelim))})
+							columnar.Field{Name: fieldStack, Value: b.String()})
 					}
 
 					link := dictLookup(data.Dictionary.LinkTable, sample.LinkIndex)
