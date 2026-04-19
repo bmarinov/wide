@@ -13,42 +13,46 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
+// Dict layout for buildRequest.
+const (
+	// StringTable
+	strSamples  int32 = 1
+	strCount    int32 = 2
+	strMainMain int32 = 3
+	strGoexit   int32 = 4
+	strMainGo   int32 = 5
+
+	// FunctionTable
+	fnMainMain int32 = 1
+	fnGoexit   int32 = 2
+
+	// LocationTable
+	locMainMain int32 = 1
+	locGoexit   int32 = 2
+
+	// StackTable
+	stkKnownCall int32 = 1 // leaf-first: main.main;runtime.goexit
+)
+
 // knownStack is the call stack every buildRequest profile resolves to.
 // Leaf-first, semicolon-separated (the pprof collapsed format).
-// Change this constant if you change the dictionaries below.
 const knownStack = "main.main;runtime.goexit"
 
-// knownSampleCol is the value column name derived from the buildRequest dictionary:
-// StringTable[1]="samples" + "_" + StringTable[2]="count".
+// knownSampleCol is the value column name derived from the buildRequest dictionary.
 const knownSampleCol = "samples_count"
 
 // buildRequest constructs a minimal but complete ProfilesData whose encoding
 // matches what protojson.Unmarshal produces from real eBPF profiler payloads:
 // all strings go through the shared dictionary, attribute keys and values are
 // stored as StringTable indices (KeyStrindex / StringValueStrindex), never inline.
-//
-// Base StringTable layout (indices 0–5 are fixed; resource attr strings are
-// appended dynamically by intern()):
-//
-//	0=""  1="samples"  2="count"  3="main.main"  4="runtime.goexit"  5="main.go"
-//	FunctionTable: 0->str[3]="main.main"   1->str[4]="runtime.goexit"
-//	LocationTable: 0->func[0]   1->func[1]
-//	StackTable:    0->locs[0,1]   (leaf=loc0=main.main, root=loc1=runtime.goexit)
-//
-// Call chain for any sample with StackIndex=0:
-//
-//	StackTable[0].LocationIndices=[0,1]
-//	-> LocationTable[0].Lines[0].FunctionIndex=0 -> StringTable[3] = "main.main"
-//	-> LocationTable[1].Lines[0].FunctionIndex=1 -> StringTable[4] = "runtime.goexit"
-//	-> "main.main;runtime.goexit"
 func buildRequest(samples []*v1development.Sample, resourceAttrs map[string]string) *v1development.ProfilesData {
 	strs := []string{
-		"",               // 0: sentinel, index 0 is always empty
-		"samples",        // 1: sample type name
-		"count",          // 2: sample unit
-		"main.main",      // 3: leaf function name
-		"runtime.goexit", // 4: root function name
-		"main.go",        // 5: source file
+		"",               // strSentinel=0
+		"samples",        // strSamples=1
+		"count",          // strCount=2
+		"main.main",      // strMainMain=3
+		"runtime.goexit", // strGoexit=4
+		"main.go",        // strMainGo=5
 	}
 
 	// intern appends s to strs if not present and returns its index.
@@ -81,17 +85,20 @@ func buildRequest(samples []*v1development.Sample, resourceAttrs map[string]stri
 
 	return &v1development.ProfilesData{
 		Dictionary: &v1development.ProfilesDictionary{
-			StringTable: strs, // built above; resource attr strings appended by intern()
+			StringTable: strs,
 			FunctionTable: []*v1development.Function{
-				{NameStrindex: 3, FilenameStrindex: 5}, // 0: main.main
-				{NameStrindex: 4, FilenameStrindex: 5}, // 1: runtime.goexit
+				{}, // sentinel=0
+				{NameStrindex: strMainMain, FilenameStrindex: strMainGo}, // fnMainMain=1
+				{NameStrindex: strGoexit, FilenameStrindex: strMainGo},   // fnGoexit=2
 			},
 			LocationTable: []*v1development.Location{
-				{Lines: []*v1development.Line{{FunctionIndex: 0}}}, // 0 -> main.main
-				{Lines: []*v1development.Line{{FunctionIndex: 1}}}, // 1 -> runtime.goexit
+				{}, // sentinel=0
+				{Lines: []*v1development.Line{{FunctionIndex: fnMainMain}}}, // locMainMain=1
+				{Lines: []*v1development.Line{{FunctionIndex: fnGoexit}}},   // locGoexit=2
 			},
 			StackTable: []*v1development.Stack{
-				{LocationIndices: []int32{0, 1}}, // 0: leaf-first -> main.main;runtime.goexit
+				{}, // stkSentinel=0: null, StackIndex 0 means "no stack"
+				{LocationIndices: []int32{locMainMain, locGoexit}}, // stkKnownCall=1
 			},
 		},
 		ResourceProfiles: []*v1development.ResourceProfiles{
@@ -99,7 +106,7 @@ func buildRequest(samples []*v1development.Sample, resourceAttrs map[string]stri
 				Resource: &resourcev1.Resource{Attributes: attrs},
 				ScopeProfiles: []*v1development.ScopeProfiles{
 					{Profiles: []*v1development.Profile{{
-						SampleType: &v1development.ValueType{TypeStrindex: 1, UnitStrindex: 2},
+						SampleType: &v1development.ValueType{TypeStrindex: strSamples, UnitStrindex: strCount},
 						Samples:    samples,
 					}}},
 				},
@@ -108,12 +115,12 @@ func buildRequest(samples []*v1development.Sample, resourceAttrs map[string]stri
 	}
 }
 
-// oneSample returns a Sample pointing at StackTable[0] (the deterministic
+// oneSample returns a Sample pointing at stkKnownCall (the deterministic
 // knownStack) with a single timestamp and no explicit value, the eBPF shape.
 // The implicit count per observation is 1.
 func oneSample(timestampNano uint64) *v1development.Sample {
 	return &v1development.Sample{
-		StackIndex:         0,
+		StackIndex:         stkKnownCall,
 		TimestampsUnixNano: []uint64{timestampNano},
 	}
 }
@@ -257,6 +264,22 @@ func TestPivotProfiles_ProfileTimeFallsBackWhenSampleHasNoTimestamp(t *testing.T
 	}
 }
 
+func TestPivotProfiles_StackIndexZeroWithEmptyStackTableProducesEmptyStackField(t *testing.T) {
+	// StackIndex 0 is the null sentinel when no StackTable is present.
+	// The event must still be produced; fieldStack must be "" or absent, not a panic.
+	req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
+	req.Dictionary.StackTable = nil
+
+	events := pivotProfiles(req)
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if v, ok := findField(t, events[0], fieldStack); ok && v != "" {
+		t.Errorf("expected empty %q field, got %q", fieldStack, v)
+	}
+}
+
 func TestPivotProfiles_ZeroSamplesProducesZeroEvents(t *testing.T) {
 	events := pivotProfiles(buildRequest([]*v1development.Sample{}, nil))
 
@@ -268,8 +291,11 @@ func TestPivotProfiles_ZeroSamplesProducesZeroEvents(t *testing.T) {
 func TestPivotProfiles_LinkIndexResolvesTraceAndSpanID(t *testing.T) {
 	traceID := []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10}
 	spanID := []byte{0xa0, 0xa1, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7}
-	req := buildRequest([]*v1development.Sample{{StackIndex: 0, TimestampsUnixNano: []uint64{fixedTS}, LinkIndex: 0}}, nil)
-	req.Dictionary.LinkTable = []*v1development.Link{{TraceId: traceID, SpanId: spanID}}
+	req := buildRequest([]*v1development.Sample{{StackIndex: stkKnownCall, TimestampsUnixNano: []uint64{fixedTS}, LinkIndex: 1}}, nil)
+	req.Dictionary.LinkTable = []*v1development.Link{
+		{},                                 // sentinel=0
+		{TraceId: traceID, SpanId: spanID}, // real link=1
+	}
 
 	events := pivotProfiles(req)
 
@@ -278,6 +304,71 @@ func TestPivotProfiles_LinkIndexResolvesTraceAndSpanID(t *testing.T) {
 	}
 	if v, ok := findField(t, events[0], fieldSpanID); !ok || v == "" {
 		t.Errorf("expected non-empty %q field", fieldSpanID)
+	}
+}
+
+func TestPivotProfiles_LocationSentinelProducesEmptyStack(t *testing.T) {
+	// LocationTable[0] is the null sentinel, a stack referencing only loc=0
+	// must not panic and must produce an empty (or absent) stack field.
+	req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
+	req.Dictionary.StackTable[stkKnownCall] = &v1development.Stack{
+		LocationIndices: []int32{0}, // sentinel location only
+	}
+
+	events := pivotProfiles(req)
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if v, ok := findField(t, events[0], fieldStack); ok && v != "" {
+		t.Errorf("expected empty %q for sentinel location, got %q", fieldStack, v)
+	}
+}
+
+func TestPivotProfiles_FunctionSentinelFrameOmittedFromStack(t *testing.T) {
+	// FunctionTable[0] is the null sentinel, a location whose FunctionIndex=0
+	// must contribute no frame to the collapsed stack string.
+	req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
+	// Append a new location pointing at the function sentinel.
+	locWithSentinelFn := int32(len(req.Dictionary.LocationTable))
+	req.Dictionary.LocationTable = append(req.Dictionary.LocationTable,
+		&v1development.Location{Lines: []*v1development.Line{{FunctionIndex: 0}}},
+	)
+	// Stack: sentinel-fn frame first, then a real location.
+	req.Dictionary.StackTable[stkKnownCall] = &v1development.Stack{
+		LocationIndices: []int32{locWithSentinelFn, locMainMain},
+	}
+
+	events := pivotProfiles(req)
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	v, ok := findField(t, events[0], fieldStack)
+	if !ok || v == "" {
+		t.Fatalf("expected non-empty %q field, got %v", fieldStack, v)
+	}
+	stack, _ := v.(string)
+	if stack != "main.main" {
+		t.Errorf("sentinel fn frame must be omitted: got %q, want %q", stack, "main.main")
+	}
+}
+
+func TestPivotProfiles_LinkIndexZeroMeansNoLink(t *testing.T) {
+	// LinkIndex defaults to 0, the null sentinel. No trace/span fields must be emitted.
+	req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
+	// LinkTable absent; sample.LinkIndex == 0 by default.
+
+	events := pivotProfiles(req)
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if _, ok := findField(t, events[0], fieldTraceID); ok {
+		t.Errorf("expected no %q field for sentinel LinkIndex", fieldTraceID)
+	}
+	if _, ok := findField(t, events[0], fieldSpanID); ok {
+		t.Errorf("expected no %q field for sentinel LinkIndex", fieldSpanID)
 	}
 }
 

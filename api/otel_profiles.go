@@ -2,6 +2,7 @@ package router
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/bmarinov/sandbox-columnstore/internal/columnar"
@@ -15,6 +16,8 @@ const (
 	fieldTraceID = "trace_id"
 	fieldSpanID  = "span_id"
 )
+
+const stackDelim = ';'
 
 func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 	var result []columnar.Event
@@ -40,6 +43,28 @@ func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 							Value: val,
 						})
 					}
+
+					// frames
+					var stackB strings.Builder
+					if sample.StackIndex > 0 {
+						stack := data.Dictionary.StackTable[sample.StackIndex]
+						for i, locIdx := range stack.LocationIndices {
+							loc := data.Dictionary.LocationTable[locIdx]
+							for _, stackLine := range loc.Lines {
+								// TODO: safe lookups
+								fn := data.Dictionary.FunctionTable[stackLine.FunctionIndex]
+								fnName := dictStr(data.Dictionary, fn.NameStrindex)
+								_, _ = stackB.WriteString(fnName)
+								if i < len(stack.LocationIndices)-1 {
+									_, _ = stackB.WriteRune(stackDelim)
+								}
+							}
+						}
+						baseFields = append(baseFields,
+							columnar.Field{Name: fieldStack, Value: stackB.String()})
+					}
+
+					// TODO: link -> trace/span id
 
 					if len(sample.TimestampsUnixNano) > 0 && len(sample.Values) == 0 {
 						// ts-only shape
@@ -77,9 +102,6 @@ func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 						// unknown shape
 						// slog.Error()
 					}
-
-					// frames
-					// link -> trace/span id
 				}
 			}
 		}
