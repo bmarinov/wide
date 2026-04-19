@@ -1,0 +1,1951 @@
+{
+  "resourceProfiles": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "value": {
+              "intValue": "2654102"
+            },
+            "keyStrindex": 77
+          },
+          {
+            "value": {
+              "stringValueStrindex": 79
+            },
+            "keyStrindex": 78
+          },
+          {
+            "value": {
+              "stringValueStrindex": 5
+            },
+            "keyStrindex": 80
+          }
+        ]
+      },
+      "scopeProfiles": [
+        {
+          "scope": {
+            "name": "go.opentelemetry.io/ebpf-profiler"
+          },
+          "profiles": [
+            {
+              "sampleType": {
+                "typeStrindex": 3,
+                "unitStrindex": 4
+              },
+              "samples": [
+                {
+                  "stackIndex": 1,
+                  "attributeIndices": [
+                    4,
+                    5,
+                    6
+                  ],
+                  "timestampsUnixNano": [
+                    "1776459505994088917"
+                  ]
+                },
+                {
+                  "stackIndex": 2,
+                  "attributeIndices": [
+                    4,
+                    5,
+                    6
+                  ],
+                  "timestampsUnixNano": [
+                    "1776459506194098940"
+                  ]
+                },
+                {
+                  "stackIndex": 3,
+                  "attributeIndices": [
+                    4,
+                    5,
+                    6
+                  ],
+                  "timestampsUnixNano": [
+                    "1776459508194089068"
+                  ]
+                },
+                {
+                  "stackIndex": 4,
+                  "attributeIndices": [
+                    7,
+                    8,
+                    9
+                  ],
+                  "timestampsUnixNano": [
+                    "1776459508594168486"
+                  ]
+                },
+                {
+                  "stackIndex": 5,
+                  "attributeIndices": [
+                    4,
+                    5,
+                    6
+                  ],
+                  "timestampsUnixNano": [
+                    "1776459508794090405"
+                  ]
+                },
+                {
+                  "stackIndex": 6,
+                  "attributeIndices": [
+                    4,
+                    5,
+                    6
+                  ],
+                  "timestampsUnixNano": [
+                    "1776459503594088900"
+                  ]
+                },
+                {
+                  "stackIndex": 7,
+                  "attributeIndices": [
+                    4,
+                    5,
+                    10
+                  ],
+                  "timestampsUnixNano": [
+                    "1776459505394151180"
+                  ]
+                },
+                {
+                  "stackIndex": 8,
+                  "attributeIndices": [
+                    7,
+                    8,
+                    9
+                  ],
+                  "timestampsUnixNano": [
+                    "1776459505994167785"
+                  ]
+                }
+              ],
+              "timeUnixNano": "1776459503494094783",
+              "durationNano": "5525731087",
+              "periodType": {
+                "typeStrindex": 1,
+                "unitStrindex": 2
+              },
+              "period": "200000000"
+            }
+          ],
+          "schemaUrl": "https://opentelemetry.io/schemas/1.37.0"
+        }
+      ],
+      "schemaUrl": "https://opentelemetry.io/schemas/1.37.0"
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "value": {
+              "intValue": "3303"
+            },
+            "keyStrindex": 77
+          },
+          {
+            "value": {
+              "stringValueStrindex": 81
+            },
+            "keyStrindex": 78
+          },
+          {
+            "value": {
+              "stringValueStrindex": 15
+            },
+            "keyStrindex": 80
+          }
+        ]
+      },
+      "scopeProfiles": [
+        {
+          "scope": {
+            "name": "go.opentelemetry.io/ebpf-profiler"
+          },
+          "profiles": [
+            {
+              "sampleType": {
+                "typeStrindex": 3,
+                "unitStrindex": 4
+              },
+              "samples": [
+                {
+                  "stackIndex": 9,
+                  "attributeIndices": [
+                    21,
+                    22,
+                    23
+                  ],
+                  "timestampsUnixNano": [
+                    "1776459505194176182"
+                  ]
+                },
+                {
+                  "stackIndex": 10,
+                  "attributeIndices": [
+                    21,
+                    22,
+                    23
+                  ],
+                  "timestampsUnixNano": [
+                    "1776459508194180319"
+                  ]
+                }
+              ],
+              "timeUnixNano": "1776459503494094783",
+              "durationNano": "5525731087",
+              "periodType": {
+                "typeStrindex": 1,
+                "unitStrindex": 2
+              },
+              "period": "200000000"
+            }
+          ],
+          "schemaUrl": "https://opentelemetry.io/schemas/1.37.0"
+        }
+      ],
+      "schemaUrl": "https://opentelemetry.io/schemas/1.37.0"
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "value": {
+              "intValue": "2032410"
+            },
+            "keyStrindex": 77
+          },
+          {
+            "value": {
+              "stringValueStrindex": 82
+            },
+            "keyStrindex": 78
+          },
+          {
+            "value": {
+              "stringValueStrindex": 83
+            },
+            "keyStrindex": 80
+          }
+        ]
+      },
+      "scopeProfiles": [
+        {
+          "scope": {
+            "name": "go.opentelemetry.io/ebpf-profiler"
+          },
+          "profiles": [
+            {
+              "sampleType": {
+                "typeStrindex": 3,
+                "unitStrindex": 4
+              },
+              "samples": [
+                {
+                  "stackIndex": 11,
+                  "attributeIndices": [
+                    35,
+                    36,
+                    37
+                  ],
+                  "timestampsUnixNano": [
+                    "1776459508194233389"
+                  ]
+                }
+              ],
+              "timeUnixNano": "1776459503494094783",
+              "durationNano": "5525731087",
+              "periodType": {
+                "typeStrindex": 1,
+                "unitStrindex": 2
+              },
+              "period": "200000000"
+            }
+          ],
+          "schemaUrl": "https://opentelemetry.io/schemas/1.37.0"
+        }
+      ],
+      "schemaUrl": "https://opentelemetry.io/schemas/1.37.0"
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "value": {
+              "stringValueStrindex": 85
+            },
+            "keyStrindex": 84
+          },
+          {
+            "value": {
+              "intValue": "3021837"
+            },
+            "keyStrindex": 77
+          },
+          {
+            "value": {
+              "stringValueStrindex": 86
+            },
+            "keyStrindex": 78
+          },
+          {
+            "value": {
+              "stringValueStrindex": 37
+            },
+            "keyStrindex": 80
+          }
+        ]
+      },
+      "scopeProfiles": [
+        {
+          "scope": {
+            "name": "go.opentelemetry.io/ebpf-profiler"
+          },
+          "profiles": [
+            {
+              "sampleType": {
+                "typeStrindex": 3,
+                "unitStrindex": 4
+              },
+              "samples": [
+                {
+                  "stackIndex": 12,
+                  "attributeIndices": [
+                    42,
+                    43,
+                    44
+                  ],
+                  "timestampsUnixNano": [
+                    "1776459503594207002"
+                  ]
+                },
+                {
+                  "stackIndex": 13,
+                  "attributeIndices": [
+                    42,
+                    43,
+                    44
+                  ],
+                  "timestampsUnixNano": [
+                    "1776459505394205972"
+                  ]
+                },
+                {
+                  "stackIndex": 14,
+                  "attributeIndices": [
+                    42,
+                    45,
+                    44
+                  ],
+                  "timestampsUnixNano": [
+                    "1776459508594208752"
+                  ]
+                }
+              ],
+              "timeUnixNano": "1776459503494094783",
+              "durationNano": "5525731087",
+              "periodType": {
+                "typeStrindex": 1,
+                "unitStrindex": 2
+              },
+              "period": "200000000"
+            }
+          ],
+          "schemaUrl": "https://opentelemetry.io/schemas/1.37.0"
+        }
+      ],
+      "schemaUrl": "https://opentelemetry.io/schemas/1.37.0"
+    }
+  ],
+  "dictionary": {
+    "mappingTable": [
+      {},
+      {
+        "memoryStart": "37359616",
+        "memoryLimit": "185495552",
+        "fileOffset": "37355520",
+        "filenameStrindex": 5,
+        "attributeIndices": [
+          1,
+          2
+        ]
+      },
+      {
+        "memoryLimit": "4538368",
+        "filenameStrindex": 12,
+        "attributeIndices": [
+          11,
+          12
+        ]
+      },
+      {
+        "memoryLimit": "5283840",
+        "filenameStrindex": 13,
+        "attributeIndices": [
+          13,
+          14
+        ]
+      },
+      {
+        "memoryLimit": "7958528",
+        "filenameStrindex": 14,
+        "attributeIndices": [
+          15,
+          16
+        ]
+      },
+      {
+        "memoryLimit": "868352",
+        "filenameStrindex": 15,
+        "attributeIndices": [
+          17,
+          18
+        ]
+      },
+      {
+        "memoryLimit": "1503232",
+        "filenameStrindex": 16,
+        "attributeIndices": [
+          19,
+          20
+        ]
+      },
+      {
+        "filenameStrindex": 17,
+        "attributeIndices": [
+          24,
+          25
+        ]
+      },
+      {
+        "memoryLimit": "36864",
+        "filenameStrindex": 27,
+        "attributeIndices": [
+          27,
+          28
+        ]
+      },
+      {
+        "memoryLimit": "5742592",
+        "filenameStrindex": 28,
+        "attributeIndices": [
+          29,
+          30
+        ]
+      },
+      {
+        "filenameStrindex": 29,
+        "attributeIndices": [
+          31,
+          32
+        ]
+      },
+      {
+        "memoryLimit": "30932992",
+        "filenameStrindex": 36,
+        "attributeIndices": [
+          33,
+          34
+        ]
+      },
+      {
+        "memoryStart": "4194304",
+        "memoryLimit": "65982464",
+        "filenameStrindex": 37,
+        "attributeIndices": [
+          38,
+          39,
+          40
+        ]
+      }
+    ],
+    "locationTable": [
+      {},
+      {
+        "mappingIndex": 1,
+        "address": "161924025",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 1,
+        "address": "151631273",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 1,
+        "address": "161924249",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 1,
+        "address": "121674162",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 1,
+        "address": "155039956",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 1,
+        "address": "159035726",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 1,
+        "address": "151631311",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 1,
+        "address": "80261531",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 2,
+        "address": "1038283",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 3,
+        "address": "253754",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 2,
+        "address": "1039143",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 2,
+        "address": "2958519",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 2,
+        "address": "2975786",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 4,
+        "address": "7332369",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 2,
+        "address": "1092386",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 2,
+        "address": "1074152",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 5,
+        "address": "60244",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 6,
+        "address": "13748",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 6,
+        "address": "13927",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 5,
+        "address": "85796",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 7,
+        "address": "23056819",
+        "lines": [
+          {
+            "functionIndex": 1
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 7,
+        "address": "21687915",
+        "lines": [
+          {
+            "functionIndex": 2
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 7,
+        "address": "21690201",
+        "lines": [
+          {
+            "functionIndex": 3
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 7,
+        "address": "19679085",
+        "lines": [
+          {
+            "functionIndex": 4
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 7,
+        "address": "19679524",
+        "lines": [
+          {
+            "functionIndex": 5
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 7,
+        "address": "19682863",
+        "lines": [
+          {
+            "functionIndex": 6
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 7,
+        "address": "19694326",
+        "lines": [
+          {
+            "functionIndex": 7
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 7,
+        "address": "22993357",
+        "lines": [
+          {
+            "functionIndex": 8
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 7,
+        "address": "302",
+        "lines": [
+          {
+            "functionIndex": 9
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 6,
+        "address": "502177",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 6,
+        "address": "453691",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 6,
+        "address": "453763",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 6,
+        "address": "1012128",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 8,
+        "address": "28381",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 8,
+        "address": "24401",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 9,
+        "address": "4371032",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 2,
+        "address": "1479321",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 2,
+        "address": "1541682",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 2,
+        "address": "1543546",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 3,
+        "address": "253726",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 2,
+        "address": "2973846",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 2,
+        "address": "2976336",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 10,
+        "address": "196454",
+        "lines": [
+          {
+            "functionIndex": 10
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 10,
+        "address": "200123",
+        "lines": [
+          {
+            "functionIndex": 11
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 7,
+        "address": "16567517",
+        "lines": [
+          {
+            "functionIndex": 12
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 7,
+        "address": "16568295",
+        "lines": [
+          {
+            "functionIndex": 13
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 10,
+        "address": "4521",
+        "lines": [
+          {
+            "functionIndex": 14
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 7,
+        "address": "8649158",
+        "lines": [
+          {
+            "functionIndex": 15
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 6,
+        "address": "988076",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 11,
+        "address": "11696466",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 11,
+        "address": "11152780",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 11,
+        "address": "11168763",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 11,
+        "address": "5749585",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 11,
+        "address": "6053659",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 6,
+        "address": "468067",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 6,
+        "address": "1005035",
+        "attributeIndices": [
+          3
+        ]
+      },
+      {
+        "mappingIndex": 12,
+        "address": "4606052",
+        "lines": [
+          {
+            "functionIndex": 16,
+            "line": "6750"
+          }
+        ],
+        "attributeIndices": [
+          41
+        ]
+      },
+      {
+        "mappingIndex": 12,
+        "address": "4589210",
+        "lines": [
+          {
+            "functionIndex": 17,
+            "line": "4961"
+          }
+        ],
+        "attributeIndices": [
+          41
+        ]
+      },
+      {
+        "mappingIndex": 12,
+        "address": "4802569",
+        "lines": [
+          {
+            "functionIndex": 18,
+            "line": "566"
+          }
+        ],
+        "attributeIndices": [
+          41
+        ]
+      },
+      {
+        "mappingIndex": 7,
+        "address": "4330698",
+        "lines": [
+          {
+            "functionIndex": 19
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 7,
+        "address": "23050255",
+        "lines": [
+          {
+            "functionIndex": 20
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 7,
+        "address": "23051110",
+        "lines": [
+          {
+            "functionIndex": 21
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 7,
+        "address": "23081638",
+        "lines": [
+          {
+            "functionIndex": 22
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 7,
+        "address": "9030705",
+        "lines": [
+          {
+            "functionIndex": 23
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 7,
+        "address": "9030865",
+        "lines": [
+          {
+            "functionIndex": 24
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 7,
+        "address": "9035999",
+        "lines": [
+          {
+            "functionIndex": 25
+          }
+        ],
+        "attributeIndices": [
+          26
+        ]
+      },
+      {
+        "mappingIndex": 12,
+        "address": "4248525",
+        "lines": [
+          {
+            "functionIndex": 26,
+            "line": "36"
+          }
+        ],
+        "attributeIndices": [
+          41
+        ]
+      },
+      {
+        "mappingIndex": 12,
+        "address": "4931084",
+        "lines": [
+          {
+            "functionIndex": 27,
+            "line": "67"
+          }
+        ],
+        "attributeIndices": [
+          41
+        ]
+      },
+      {
+        "mappingIndex": 12,
+        "address": "4931337",
+        "lines": [
+          {
+            "functionIndex": 28,
+            "line": "97"
+          }
+        ],
+        "attributeIndices": [
+          41
+        ]
+      },
+      {
+        "mappingIndex": 12,
+        "address": "4934588",
+        "lines": [
+          {
+            "functionIndex": 29,
+            "line": "1"
+          }
+        ],
+        "attributeIndices": [
+          41
+        ]
+      },
+      {
+        "mappingIndex": 12,
+        "address": "10225710",
+        "lines": [
+          {
+            "functionIndex": 30,
+            "line": "55"
+          }
+        ],
+        "attributeIndices": [
+          41
+        ]
+      },
+      {
+        "mappingIndex": 12,
+        "address": "64509796",
+        "lines": [
+          {
+            "functionIndex": 31,
+            "line": "119"
+          }
+        ],
+        "attributeIndices": [
+          41
+        ]
+      },
+      {
+        "mappingIndex": 12,
+        "address": "64520094",
+        "lines": [
+          {
+            "functionIndex": 32,
+            "line": "364"
+          }
+        ],
+        "attributeIndices": [
+          41
+        ]
+      },
+      {
+        "mappingIndex": 12,
+        "address": "65449435",
+        "lines": [
+          {
+            "functionIndex": 33,
+            "line": "111"
+          }
+        ],
+        "attributeIndices": [
+          41
+        ]
+      },
+      {
+        "mappingIndex": 12,
+        "address": "4809312",
+        "lines": [
+          {
+            "functionIndex": 34,
+            "line": "1772"
+          }
+        ],
+        "attributeIndices": [
+          41
+        ]
+      },
+      {
+        "mappingIndex": 12,
+        "address": "4816323",
+        "lines": [
+          {
+            "functionIndex": 35,
+            "line": "570"
+          }
+        ],
+        "attributeIndices": [
+          41
+        ]
+      },
+      {
+        "mappingIndex": 12,
+        "address": "4523759",
+        "lines": [
+          {
+            "functionIndex": 36,
+            "line": "73"
+          }
+        ],
+        "attributeIndices": [
+          41
+        ]
+      },
+      {
+        "mappingIndex": 12,
+        "address": "4337894",
+        "lines": [
+          {
+            "functionIndex": 37,
+            "line": "48"
+          }
+        ],
+        "attributeIndices": [
+          41
+        ]
+      },
+      {
+        "mappingIndex": 12,
+        "address": "4570251",
+        "lines": [
+          {
+            "functionIndex": 38,
+            "line": "1968"
+          }
+        ],
+        "attributeIndices": [
+          41
+        ]
+      },
+      {
+        "mappingIndex": 12,
+        "address": "4577351",
+        "lines": [
+          {
+            "functionIndex": 39,
+            "line": "3400"
+          }
+        ],
+        "attributeIndices": [
+          41
+        ]
+      },
+      {
+        "mappingIndex": 12,
+        "address": "4581776",
+        "lines": [
+          {
+            "functionIndex": 40,
+            "line": "4164"
+          }
+        ],
+        "attributeIndices": [
+          41
+        ]
+      },
+      {
+        "mappingIndex": 12,
+        "address": "4582948",
+        "lines": [
+          {
+            "functionIndex": 41,
+            "line": "4305"
+          }
+        ],
+        "attributeIndices": [
+          41
+        ]
+      },
+      {
+        "mappingIndex": 12,
+        "address": "4802452",
+        "lines": [
+          {
+            "functionIndex": 42,
+            "line": "500"
+          }
+        ],
+        "attributeIndices": [
+          41
+        ]
+      }
+    ],
+    "functionTable": [
+      {},
+      {
+        "nameStrindex": 18
+      },
+      {
+        "nameStrindex": 19
+      },
+      {
+        "nameStrindex": 20
+      },
+      {
+        "nameStrindex": 21
+      },
+      {
+        "nameStrindex": 22
+      },
+      {
+        "nameStrindex": 23
+      },
+      {
+        "nameStrindex": 24
+      },
+      {
+        "nameStrindex": 25
+      },
+      {
+        "nameStrindex": 26
+      },
+      {
+        "nameStrindex": 30
+      },
+      {
+        "nameStrindex": 31
+      },
+      {
+        "nameStrindex": 32
+      },
+      {
+        "nameStrindex": 33
+      },
+      {
+        "nameStrindex": 34
+      },
+      {
+        "nameStrindex": 35
+      },
+      {
+        "nameStrindex": 39,
+        "filenameStrindex": 40
+      },
+      {
+        "nameStrindex": 41,
+        "filenameStrindex": 40
+      },
+      {
+        "nameStrindex": 42,
+        "filenameStrindex": 43
+      },
+      {
+        "nameStrindex": 44
+      },
+      {
+        "nameStrindex": 45
+      },
+      {
+        "nameStrindex": 46
+      },
+      {
+        "nameStrindex": 47
+      },
+      {
+        "nameStrindex": 48
+      },
+      {
+        "nameStrindex": 49
+      },
+      {
+        "nameStrindex": 50
+      },
+      {
+        "nameStrindex": 51,
+        "filenameStrindex": 52
+      },
+      {
+        "nameStrindex": 53,
+        "filenameStrindex": 54
+      },
+      {
+        "nameStrindex": 55,
+        "filenameStrindex": 54
+      },
+      {
+        "nameStrindex": 55,
+        "filenameStrindex": 56
+      },
+      {
+        "nameStrindex": 57,
+        "filenameStrindex": 58
+      },
+      {
+        "nameStrindex": 59,
+        "filenameStrindex": 60
+      },
+      {
+        "nameStrindex": 61,
+        "filenameStrindex": 62
+      },
+      {
+        "nameStrindex": 63,
+        "filenameStrindex": 64
+      },
+      {
+        "nameStrindex": 65,
+        "filenameStrindex": 43
+      },
+      {
+        "nameStrindex": 66,
+        "filenameStrindex": 67
+      },
+      {
+        "nameStrindex": 68,
+        "filenameStrindex": 69
+      },
+      {
+        "nameStrindex": 70,
+        "filenameStrindex": 71
+      },
+      {
+        "nameStrindex": 72,
+        "filenameStrindex": 40
+      },
+      {
+        "nameStrindex": 73,
+        "filenameStrindex": 40
+      },
+      {
+        "nameStrindex": 74,
+        "filenameStrindex": 40
+      },
+      {
+        "nameStrindex": 75,
+        "filenameStrindex": 40
+      },
+      {
+        "nameStrindex": 76,
+        "filenameStrindex": 43
+      }
+    ],
+    "linkTable": [
+      {}
+    ],
+    "stringTable": [
+      "",
+      "cpu",
+      "nanoseconds",
+      "samples",
+      "count",
+      "code",
+      "process.executable.build_id.gnu",
+      "process.executable.build_id.htlhash",
+      "profile.frame.type",
+      "thread.name",
+      "thread.id",
+      "cpu.logical_number",
+      "libQt6Core.so.6.10.2",
+      "libQt6Widgets.so.6.10.2",
+      "libQt6Gui.so.6.10.2",
+      "kwin_wayland",
+      "libc.so.6",
+      "vmlinux",
+      "mutex_unlock",
+      "unix_stream_read_generic",
+      "unix_stream_recvmsg",
+      "sock_recvmsg",
+      "____sys_recvmsg",
+      "___sys_recvmsg",
+      "__sys_recvmsg",
+      "do_syscall_64",
+      "entry_SYSCALL_64_after_hwframe",
+      "libwayland-server.so.0.24.0",
+      "libkwin.so.6.6.3",
+      "amdgpu",
+      "amdgpu_cs_parser_bos.isra.0",
+      "amdgpu_cs_ioctl",
+      "drm_ioctl_kernel",
+      "drm_ioctl",
+      "amdgpu_drm_ioctl",
+      "__x64_sys_ioctl",
+      "libgallium-25.3.6.so",
+      "otelcol-ebpf-profiler",
+      "process.executable.build_id.go",
+      "runtime.setBlockOnExitSyscall",
+      "runtime/proc.go",
+      "runtime.exitsyscall.func3",
+      "runtime.systemstack",
+      "runtime/asm_amd64.s",
+      "finish_task_switch.isra.0",
+      "__schedule",
+      "schedule",
+      "schedule_hrtimeout_range_clock",
+      "ep_poll",
+      "do_epoll_wait",
+      "__x64_sys_epoll_wait",
+      "internal/runtime/syscall/linux.Syscall6",
+      "internal/runtime/syscall/linux/asm_linux_amd64.s",
+      "syscall.RawSyscall6",
+      "syscall/syscall_linux.go",
+      "syscall.Syscall6",
+      "<autogenerated>",
+      "golang.org/x/sys/unix.EpollWait",
+      "golang.org/x/sys@v0.43.0/unix/zsyscall_linux_amd64.go",
+      "github.com/cilium/ebpf/internal/epoll.(*Poller).Wait",
+      "github.com/cilium/ebpf@v0.21.0/internal/unix/types_linux.go",
+      "github.com/cilium/ebpf/perf.(*Reader).ReadInto",
+      "github.com/cilium/ebpf@v0.21.0/perf/reader.go",
+      "go.opentelemetry.io/ebpf-profiler/tracer.startPerfEventMonitor.func1",
+      "go.opentelemetry.io/ebpf-profiler@v0.0.202614/tracer/events.go",
+      "runtime.goexit",
+      "runtime.futex",
+      "runtime/sys_linux_amd64.s",
+      "runtime.futexsleep",
+      "runtime/os_linux.go",
+      "runtime.notesleep",
+      "runtime/lock_futex.go",
+      "runtime.stopm",
+      "runtime.findRunnable",
+      "runtime.schedule",
+      "runtime.park_m",
+      "runtime.mcall",
+      "process.pid",
+      "process.executable.path",
+      "/usr/share/code/code",
+      "process.executable.name",
+      "/usr/bin/kwin_wayland",
+      "/usr/bin/plasmashell",
+      "plasmashell",
+      "container.id",
+      "718984d2661cf0204bcdb97ecadb3da57c11d3914f142ae3cef6ce06b260b749",
+      "/otelcol-ebpf-profiler"
+    ],
+    "attributeTable": [
+      {
+        "value": {}
+      },
+      {
+        "keyStrindex": 6,
+        "value": {
+          "stringValue": "eb6e13f8324a67062e60dfe2ee225e07ae9a97dc"
+        }
+      },
+      {
+        "keyStrindex": 7,
+        "value": {
+          "stringValue": "f9292ec0b416d2a7116e4b0b7a95286c"
+        }
+      },
+      {
+        "keyStrindex": 8,
+        "value": {
+          "stringValue": "native"
+        }
+      },
+      {
+        "keyStrindex": 9,
+        "value": {
+          "stringValue": "code"
+        }
+      },
+      {
+        "keyStrindex": 10,
+        "value": {
+          "intValue": "2654102"
+        }
+      },
+      {
+        "keyStrindex": 11,
+        "value": {
+          "intValue": "2"
+        }
+      },
+      {
+        "keyStrindex": 9,
+        "value": {
+          "stringValue": "ThreadPoolForeg"
+        }
+      },
+      {
+        "keyStrindex": 10,
+        "value": {
+          "intValue": "2654105"
+        }
+      },
+      {
+        "keyStrindex": 11,
+        "value": {
+          "intValue": "10"
+        }
+      },
+      {
+        "keyStrindex": 11,
+        "value": {
+          "intValue": "8"
+        }
+      },
+      {
+        "keyStrindex": 6,
+        "value": {
+          "stringValue": "dee315d41177f08f7ab675cf9863b4bce201fef2"
+        }
+      },
+      {
+        "keyStrindex": 7,
+        "value": {
+          "stringValue": "26cb09755e7f447c75a92aa243e74843"
+        }
+      },
+      {
+        "keyStrindex": 6,
+        "value": {
+          "stringValue": "2f8f8053c19c7b42c7800b8d67be35d97af8bc09"
+        }
+      },
+      {
+        "keyStrindex": 7,
+        "value": {
+          "stringValue": "e6a4a638629ce17f4de1407f7ba16275"
+        }
+      },
+      {
+        "keyStrindex": 6,
+        "value": {
+          "stringValue": "986a8ac894b424cc77d0aa3c9150825d9c9fae72"
+        }
+      },
+      {
+        "keyStrindex": 7,
+        "value": {
+          "stringValue": "495e7535abfd497f2ea8f6da3862a487"
+        }
+      },
+      {
+        "keyStrindex": 6,
+        "value": {
+          "stringValue": "88371bc22987e0aa9803da2fb61943d7fef0186c"
+        }
+      },
+      {
+        "keyStrindex": 7,
+        "value": {
+          "stringValue": "8e680465966885f712d4ad96d9d2dca5"
+        }
+      },
+      {
+        "keyStrindex": 6,
+        "value": {
+          "stringValue": "ff0267465bc3d76e21003b3bc5598fd5ee63e261"
+        }
+      },
+      {
+        "keyStrindex": 7,
+        "value": {
+          "stringValue": "3d32373db239c02b3f4faa93171fbd1c"
+        }
+      },
+      {
+        "keyStrindex": 9,
+        "value": {
+          "stringValue": "kwin_wayland"
+        }
+      },
+      {
+        "keyStrindex": 10,
+        "value": {
+          "intValue": "3303"
+        }
+      },
+      {
+        "keyStrindex": 11,
+        "value": {
+          "intValue": "11"
+        }
+      },
+      {
+        "keyStrindex": 6,
+        "value": {
+          "stringValue": "40bf6910aea4e98a3523a0408931a22c90a66eb4"
+        }
+      },
+      {
+        "keyStrindex": 7,
+        "value": {
+          "stringValue": "c3a167226a637f6bc781cd6643566173"
+        }
+      },
+      {
+        "keyStrindex": 8,
+        "value": {
+          "stringValue": "kernel"
+        }
+      },
+      {
+        "keyStrindex": 6,
+        "value": {
+          "stringValue": "acd7b50b934e74dbd36d655501860bd11704b087"
+        }
+      },
+      {
+        "keyStrindex": 7,
+        "value": {
+          "stringValue": "d3f698e82290411f2e94c3da77f1badc"
+        }
+      },
+      {
+        "keyStrindex": 6,
+        "value": {
+          "stringValue": "18e949fa038b94e3d47f1cbfdfa9de0bd75b7a52"
+        }
+      },
+      {
+        "keyStrindex": 7,
+        "value": {
+          "stringValue": "299a4b1b99a3fe9cdb3166cdf458cb19"
+        }
+      },
+      {
+        "keyStrindex": 6,
+        "value": {
+          "stringValue": "545e7483f0010330504d7280188648f6a80b3c4c"
+        }
+      },
+      {
+        "keyStrindex": 7,
+        "value": {
+          "stringValue": "4025b23e6ce7dffd5f90995888771ffc"
+        }
+      },
+      {
+        "keyStrindex": 6,
+        "value": {
+          "stringValue": "90b070b04871433b8fc4555be154e8f7d641ee5f"
+        }
+      },
+      {
+        "keyStrindex": 7,
+        "value": {
+          "stringValue": "761e8f201ef57d91eb334fb0b7695450"
+        }
+      },
+      {
+        "keyStrindex": 9,
+        "value": {
+          "stringValue": "plasmashel:cs0"
+        }
+      },
+      {
+        "keyStrindex": 10,
+        "value": {
+          "intValue": "2032419"
+        }
+      },
+      {
+        "keyStrindex": 11,
+        "value": {
+          "intValue": "14"
+        }
+      },
+      {
+        "keyStrindex": 6,
+        "value": {
+          "stringValue": "82cc64b924b5772ab80ea68b96ae3a8539dc7317"
+        }
+      },
+      {
+        "keyStrindex": 38,
+        "value": {
+          "stringValue": "_NmLIaqUIGfOPOHIKj0r/V1zOSWBWB0rXX38T1Iwu/C6wclhnS_5M7K7iz_JY3/F432cj-8MombWI_S9qFV"
+        }
+      },
+      {
+        "keyStrindex": 7,
+        "value": {
+          "stringValue": "0a6e2067a58b8dbe582a09f8c65034e8"
+        }
+      },
+      {
+        "keyStrindex": 8,
+        "value": {
+          "stringValue": "go"
+        }
+      },
+      {
+        "keyStrindex": 9,
+        "value": {
+          "stringValue": "otelcol-ebpf-pr"
+        }
+      },
+      {
+        "keyStrindex": 10,
+        "value": {
+          "intValue": "3021867"
+        }
+      },
+      {
+        "keyStrindex": 11,
+        "value": {
+          "intValue": "12"
+        }
+      },
+      {
+        "keyStrindex": 10,
+        "value": {
+          "intValue": "3021918"
+        }
+      }
+    ],
+    "stackTable": [
+      {},
+      {
+        "locationIndices": [
+          1
+        ]
+      },
+      {
+        "locationIndices": [
+          2
+        ]
+      },
+      {
+        "locationIndices": [
+          3
+        ]
+      },
+      {
+        "locationIndices": [
+          4
+        ]
+      },
+      {
+        "locationIndices": [
+          5
+        ]
+      },
+      {
+        "locationIndices": [
+          6
+        ]
+      },
+      {
+        "locationIndices": [
+          7
+        ]
+      },
+      {
+        "locationIndices": [
+          8
+        ]
+      },
+      {
+        "locationIndices": [
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20
+        ]
+      },
+      {
+        "locationIndices": [
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          11,
+          41,
+          42,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20
+        ]
+      },
+      {
+        "locationIndices": [
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          28,
+          29,
+          49,
+          50,
+          51,
+          52,
+          53,
+          54,
+          55,
+          56
+        ]
+      },
+      {
+        "locationIndices": [
+          57,
+          58,
+          59
+        ]
+      },
+      {
+        "locationIndices": [
+          60,
+          61,
+          62,
+          63,
+          64,
+          65,
+          66,
+          28,
+          29,
+          67,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          74,
+          75
+        ]
+      },
+      {
+        "locationIndices": [
+          76,
+          77,
+          78,
+          79,
+          80,
+          81,
+          82,
+          83
+        ]
+      }
+    ]
+  }
+}

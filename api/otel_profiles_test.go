@@ -544,6 +544,8 @@ func TestPivotProfiles_InlinedFramesAllAppearInStack(t *testing.T) {
 	}
 }
 
+// TODO: test oracle for data driven tests
+
 func TestPivotProfiles_Testdata(t *testing.T) {
 	files, _ := filepath.Glob("testdata/profiles/*.json")
 	for _, f := range files {
@@ -558,10 +560,15 @@ func TestPivotProfiles_Testdata(t *testing.T) {
 				t.Fatal("expected at least one event")
 			}
 
-			t.Error("not implemented")
-			// TODO: every event: stack field non-empty
-			// TODO: every event: value field present and is int64
-			// TODO: every event: timestamp not zero
+			for i, event := range events {
+				if event.Timestamp.IsZero() {
+					t.Errorf("event with zero ts: idx %d, data: %v", i, event)
+				}
+				_, found := findField(t, event, fieldStack)
+				if !found {
+					t.Errorf("expected field %v not found", fieldStack)
+				}
+			}
 		})
 	}
 }
