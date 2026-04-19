@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/bmarinov/sandbox-columnstore/internal/columnar"
+	"github.com/bmarinov/sandbox-columnstore/internal/otlp"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/proto/otlp/profiles/v1development"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -41,10 +42,10 @@ func TestMetricsIngest(t *testing.T) {
 }
 
 func TestProfilesIngest_ThreeSamplesLandInStore(t *testing.T) {
-	req := buildRequest([]*v1development.Sample{
-		oneSample(fixedTS),
-		oneSample(fixedTS + uint64(time.Second)),
-		oneSample(fixedTS + 2*uint64(time.Second)),
+	req := otlp.BuildProfilesRequest([]*v1development.Sample{
+		otlp.OneSample(fixedTS),
+		otlp.OneSample(fixedTS + uint64(time.Second)),
+		otlp.OneSample(fixedTS + 2*uint64(time.Second)),
 	}, map[string]string{"service.name": "test-svc"})
 
 	body, err := protojson.Marshal(req)

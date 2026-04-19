@@ -9,6 +9,7 @@ import (
 	collectorv1 "go.opentelemetry.io/proto/otlp/collector/profiles/v1development"
 
 	"github.com/bmarinov/sandbox-columnstore/internal/columnar"
+	"github.com/bmarinov/sandbox-columnstore/internal/otlp"
 	"go.opentelemetry.io/proto/otlp/profiles/v1development"
 	"google.golang.org/grpc"
 	_ "google.golang.org/grpc/encoding/gzip"
@@ -27,7 +28,7 @@ func newProfilesGRPCServer(s *columnar.Store) *profilesGRPCServer {
 }
 
 func (s *profilesGRPCServer) Export(ctx context.Context, req *collectorv1.ExportProfilesServiceRequest) (*collectorv1.ExportProfilesServiceResponse, error) {
-	events := pivotProfiles(&v1development.ProfilesData{
+	events := otlp.PivotProfiles(&v1development.ProfilesData{
 		ResourceProfiles: req.ResourceProfiles,
 		Dictionary:       req.Dictionary,
 	})
