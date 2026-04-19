@@ -51,8 +51,11 @@ func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 						for i, locIdx := range stack.LocationIndices {
 							loc := data.Dictionary.LocationTable[locIdx]
 							for _, stackLine := range loc.Lines {
+								fn := dictLookup(data.Dictionary.FunctionTable, stackLine.FunctionIndex)
+								if fn == nil {
+									continue
+								}
 								// TODO: safe lookups
-								fn := data.Dictionary.FunctionTable[stackLine.FunctionIndex]
 								fnName := dictStr(data.Dictionary, fn.NameStrindex)
 								_, _ = stackB.WriteString(fnName)
 								if i < len(stack.LocationIndices)-1 {
@@ -140,4 +143,13 @@ func dictStr(dict *v1development.ProfilesDictionary, idx int32) string {
 		return ""
 	}
 	return dict.StringTable[idx]
+}
+
+// dictStr safely indexes into a lookup table. Returns "" for index 0 (sentinel).
+func dictLookup[T any](lookupTable []T, idx int32) T {
+	if idx == 0 || lookupTable == nil || int(idx) >= len(lookupTable) {
+		var zero T
+		return zero
+	}
+	return lookupTable[idx]
 }
