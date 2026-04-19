@@ -33,7 +33,16 @@ func newOTELMux(store *columnar.Store) *http.ServeMux {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		pivotProfiles(&req)
+		events := pivotProfiles(&req)
+		for _, v := range events {
+			err := store.Receive(r.Context(), v, nil)
+			if err != nil {
+				slog.Error("receiving profile", "err", err)
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
+		w.WriteHeader(http.StatusAccepted)
 
 	}))
 
