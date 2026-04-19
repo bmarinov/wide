@@ -24,16 +24,16 @@ const (
 )
 
 func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
+	if data.Dictionary == nil {
+		// invalid data
+		return nil
+	}
+
 	var result []columnar.Event
 	for _, rProf := range data.GetResourceProfiles() {
 		for _, scopeProf := range rProf.ScopeProfiles {
 			for _, profile := range scopeProf.Profiles {
 
-				// validation (top-level)
-				if data.Dictionary == nil {
-					// invalid data
-					return nil
-				}
 				if profile.SampleType == nil {
 					continue
 				}
@@ -89,10 +89,8 @@ func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 								}
 							}
 						}
-						var stackB strings.Builder
-						stackB.WriteString(strings.Join(frames, string(stackDelim)))
 						baseFields = append(baseFields,
-							columnar.Field{Name: fieldStack, Value: stackB.String()})
+							columnar.Field{Name: fieldStack, Value: strings.Join(frames, string(stackDelim))})
 					}
 
 					link := dictLookup(data.Dictionary.LinkTable, sample.LinkIndex)
@@ -111,17 +109,15 @@ func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 						}
 					}
 
-					// TODO: link -> trace/span id
-
 					if len(sample.TimestampsUnixNano) > 0 && len(sample.Values) == 0 {
 						// ts-only shape
 						for _, sampleTS := range sample.TimestampsUnixNano {
+							fields := make([]columnar.Field, len(baseFields)+1)
+							copy(fields, baseFields)
+							fields[len(fields)-1] = columnar.Field{Name: sType + "_" + sUnit, Value: int64(1)}
 							result = append(result, columnar.Event{
 								Timestamp: time.Unix(0, int64(sampleTS)).UTC(),
-								Fields: append(baseFields, columnar.Field{
-									Name:  sType + "_" + sUnit,
-									Value: int64(1),
-								}),
+								Fields:    fields,
 							})
 						}
 					} else if len(sample.TimestampsUnixNano) == len(sample.Values) &&

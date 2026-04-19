@@ -233,6 +233,24 @@ func TestPivotProfiles_Stability(t *testing.T) {
 			},
 			wantEvents: 1,
 		},
+		{
+			name: "mismatched timestamps and values produces zero events",
+			req: func() *v1development.ProfilesData {
+				return buildRequest([]*v1development.Sample{{
+					StackIndex:         stkKnownCall,
+					TimestampsUnixNano: []uint64{fixedTS, fixedTS + 1},
+					Values:             []int64{10}, // length mismatch: unknown shape
+				}}, nil)
+			},
+			wantEvents: 0,
+		},
+		{
+			name: "sample with no timestamps and no values produces zero events",
+			req: func() *v1development.ProfilesData {
+				return buildRequest([]*v1development.Sample{{StackIndex: stkKnownCall}}, nil)
+			},
+			wantEvents: 0,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -541,6 +559,40 @@ func TestPivotProfiles_InlinedFramesAllAppearInStack(t *testing.T) {
 	want := "inlined.func;outer.func;runtime.goexit"
 	if v != want {
 		t.Errorf("stack: got %q, want %q", v, want)
+	}
+}
+
+func TestPivotProfiles_MultipleTimestampsWithoutValuesProduceIndependentEvents(t *testing.T) {
+	sample := &v1development.Sample{
+		StackIndex:         stkKnownCall,
+		TimestampsUnixNano: []uint64{fixedTS, fixedTS + 1_000_000_000},
+	}
+	events := pivotProfiles(buildRequest([]*v1development.Sample{sample}, nil))
+	if len(events) != 2 {
+		t.Fatalf("expected 2 events, got %d", len(events))
+	}
+	events[0].Fields[len(events[0].Fields)-1].Value = int64(999)
+	v, ok := findField(t, events[1], knownSampleCol)
+	if !ok {
+		t.Fatalf("field %s missing on event 1", knownSampleCol)
+	}
+	if v != int64(1) {
+		t.Errorf("mutating event[0] corrupted event[1]: got %v, want 1", v)
+	}
+}
+
+func TestPivotProfiles_AggregatedSampleValueAppearsInEvent(t *testing.T) {
+	req := buildRequest([]*v1development.Sample{{StackIndex: stkKnownCall, Values: []int64{42}}}, nil)
+	req.ResourceProfiles[0].ScopeProfiles[0].Profiles[0].TimeUnixNano = fixedTS
+
+	events := pivotProfiles(req)
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	v, ok := findField(t, events[0], knownSampleCol)
+	if !ok || v != int64(42) {
+		t.Errorf("%s: got %v, want 42", knownSampleCol, v)
 	}
 }
 
