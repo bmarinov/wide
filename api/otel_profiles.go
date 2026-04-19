@@ -1,6 +1,7 @@
 package router
 
 import (
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"time"
@@ -92,6 +93,22 @@ func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 						stackB.WriteString(strings.Join(frames, string(stackDelim)))
 						baseFields = append(baseFields,
 							columnar.Field{Name: fieldStack, Value: stackB.String()})
+					}
+
+					link := dictLookup(data.Dictionary.LinkTable, sample.LinkIndex)
+					if link != nil {
+						if len(link.TraceId) > 0 {
+							baseFields = append(baseFields, columnar.Field{
+								Name:  fieldTraceID,
+								Value: hex.EncodeToString(link.TraceId),
+							})
+						}
+						if len(link.SpanId) > 0 {
+							baseFields = append(baseFields, columnar.Field{
+								Name:  fieldSpanID,
+								Value: hex.EncodeToString(link.SpanId),
+							})
+						}
 					}
 
 					// TODO: link -> trace/span id

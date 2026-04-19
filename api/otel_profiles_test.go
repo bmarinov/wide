@@ -462,11 +462,13 @@ func TestPivotProfiles_LinkIndexResolvesTraceAndSpanID(t *testing.T) {
 
 	events := pivotProfiles(req)
 
-	if v, ok := findField(t, events[0], fieldTraceID); !ok || v == "" {
-		t.Errorf("expected non-empty %q field", fieldTraceID)
+	expectedTraceID := "0102030405060708090a0b0c0d0e0f10"
+	if v, ok := findField(t, events[0], fieldTraceID); !ok || v != expectedTraceID {
+		t.Errorf("expected trace_id %s got %v", expectedTraceID, v)
 	}
-	if v, ok := findField(t, events[0], fieldSpanID); !ok || v == "" {
-		t.Errorf("expected non-empty %q field", fieldSpanID)
+	expectedSpanID := "a0a1a2a3a4a5a6a7"
+	if v, ok := findField(t, events[0], fieldSpanID); !ok || v != expectedSpanID {
+		t.Errorf("expected span_id %s got %v", expectedSpanID, v)
 	}
 }
 
@@ -541,7 +543,6 @@ func TestPivotProfiles_InlinedFramesAllAppearInStack(t *testing.T) {
 		t.Errorf("stack: got %q, want %q", v, want)
 	}
 }
-
 
 func TestPivotProfiles_Testdata(t *testing.T) {
 	files, _ := filepath.Glob("testdata/profiles/*.json")
