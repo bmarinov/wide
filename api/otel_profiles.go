@@ -12,7 +12,7 @@ import (
 	"go.opentelemetry.io/proto/otlp/profiles/v1development"
 )
 
-// field names as constants: proto version change = change here first
+// field names as constants
 const (
 	fieldStack   = "profile.stack"
 	fieldTraceID = "trace_id"
@@ -159,7 +159,7 @@ func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 						})
 					} else {
 						// unknown shape
-						slog.Error("processing sample with unknown shape", "profile_id", profile.ProfileId,
+						slog.Warn("processing sample with unknown shape", "profile_id", profile.ProfileId,
 							"len_ts", len(sample.TimestampsUnixNano), "len_values", len(sample.Values))
 					}
 				}
