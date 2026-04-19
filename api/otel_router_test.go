@@ -1,15 +1,19 @@
 package router
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/bmarinov/sandbox-columnstore/internal/columnar"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.opentelemetry.io/proto/otlp/profiles/v1development"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 func TestMetricsIngest(t *testing.T) {
@@ -33,6 +37,61 @@ func TestMetricsIngest(t *testing.T) {
 
 	if recorder.Code != http.StatusAccepted {
 		t.Fatalf("expected %d got %d: %s", http.StatusAccepted, recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestProfilesIngest_ThreeSamplesLandInStore(t *testing.T) {
+	req := buildRequest([]*v1development.Sample{
+		oneSample(fixedTS),
+		oneSample(fixedTS + uint64(time.Second)),
+		oneSample(fixedTS + 2*uint64(time.Second)),
+	}, map[string]string{"service.name": "test-svc"})
+
+	body, err := protojson.Marshal(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	s := columnar.New(t.Context(), columnar.Config{})
+	mux := NewAppMux(s)
+
+	r, err := http.NewRequest(http.MethodPost, "/v1development/profiles", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Header.Set("Content-Type", "application/json")
+
+	recorder := httptest.NewRecorder()
+	mux.ServeHTTP(recorder, r)
+
+	if recorder.Code != http.StatusAccepted {
+		t.Fatalf("expected %d got %d: %s", http.StatusAccepted, recorder.Code, recorder.Body.String())
+	}
+
+	ack, wait := ackFn(t)
+	_ = s.Receive(t.Context(), columnar.Event{Timestamp: time.Now()}, ack)
+	wait()
+
+	if got := s.Stats().BufRows; got != 4 { // 3 profile events + 1 sync sentinel
+		t.Errorf("expected 4 rows (3 profile + 1 sentinel), got %d", got)
+	}
+}
+
+func TestProfilesIngest_InvalidBody_Returns400(t *testing.T) {
+	s := columnar.New(t.Context(), columnar.Config{})
+	mux := NewAppMux(s)
+
+	r, err := http.NewRequest(http.MethodPost, "/v1development/profiles", strings.NewReader("not json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.Header.Set("Content-Type", "application/json")
+
+	recorder := httptest.NewRecorder()
+	mux.ServeHTTP(recorder, r)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Errorf("expected 400 got %d", recorder.Code)
 	}
 }
 

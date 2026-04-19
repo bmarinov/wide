@@ -19,6 +19,7 @@ func NewAppMux(store *columnar.Store) *http.ServeMux {
 
 	appMux := http.NewServeMux()
 	appMux.Handle("/v1/", otelMux)
+	appMux.Handle("/v1development/", otelMux)
 	appMux.Handle("/", eventMux)
 	appMux.Handle("/health", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
