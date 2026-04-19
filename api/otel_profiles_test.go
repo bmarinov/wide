@@ -13,24 +13,25 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-// Dict layout for buildRequest.
+// Dict layout for buildRequest: named indices are compile-checked cross-references.
+// Update both the constant and the table slice when the layout changes.
 const (
-	// StringTable
+	// StringTable: [0] is always "" (proto sentinel for string indices)
 	strSamples  int32 = 1
 	strCount    int32 = 2
 	strMainMain int32 = 3
 	strGoexit   int32 = 4
 	strMainGo   int32 = 5
 
-	// FunctionTable
+	// FunctionTable: [0] is the null sentinel (Function{})
 	fnMainMain int32 = 1
 	fnGoexit   int32 = 2
 
-	// LocationTable
+	// LocationTable: [0] is the null sentinel (Location{})
 	locMainMain int32 = 1
 	locGoexit   int32 = 2
 
-	// StackTable
+	// StackTable: [0] is the null sentinel (Stack{}); StackIndex 0 means "no stack"
 	stkKnownCall int32 = 1 // leaf-first: main.main;runtime.goexit
 )
 
@@ -97,7 +98,7 @@ func buildRequest(samples []*v1development.Sample, resourceAttrs map[string]stri
 				{Lines: []*v1development.Line{{FunctionIndex: fnGoexit}}},   // locGoexit=2
 			},
 			StackTable: []*v1development.Stack{
-				{}, // stkSentinel=0: null, StackIndex 0 means "no stack"
+				{}, // sentinel=0
 				{LocationIndices: []int32{locMainMain, locGoexit}}, // stkKnownCall=1
 			},
 		},
@@ -115,9 +116,8 @@ func buildRequest(samples []*v1development.Sample, resourceAttrs map[string]stri
 	}
 }
 
-// oneSample returns a Sample pointing at stkKnownCall (the deterministic
-// knownStack) with a single timestamp and no explicit value, the eBPF shape.
-// The implicit count per observation is 1.
+// oneSample returns a Sample pointing at stkKnownCall with a single timestamp
+// and no explicit value, the eBPF shape. The implicit count per observation is 1.
 func oneSample(timestampNano uint64) *v1development.Sample {
 	return &v1development.Sample{
 		StackIndex:         stkKnownCall,
@@ -137,6 +137,82 @@ func findField(t *testing.T, e columnar.Event, name string) (any, bool) {
 }
 
 var fixedTS = uint64(time.Now().Truncate(time.Microsecond).UnixNano())
+
+// --- Stability: malformed or missing data must not panic; events are still produced ---
+
+func TestPivotProfiles_NilStackTableDoesNotPanic(t *testing.T) {
+	req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
+	req.Dictionary.StackTable = nil
+
+	events := pivotProfiles(req)
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if v, ok := findField(t, events[0], fieldStack); ok && v != "" {
+		t.Errorf("expected empty %q field, got %q", fieldStack, v)
+	}
+}
+
+// --- Sentinel: index 0 in any table means "unset"; field absent from event, no crash ---
+
+func TestPivotProfiles_UnresolvableLocationProducesEmptyStackField(t *testing.T) {
+	req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
+	req.Dictionary.StackTable[stkKnownCall] = &v1development.Stack{
+		LocationIndices: []int32{0}, // sentinel location only
+	}
+
+	events := pivotProfiles(req)
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if v, ok := findField(t, events[0], fieldStack); ok && v != "" {
+		t.Errorf("expected empty %q for sentinel location, got %q", fieldStack, v)
+	}
+}
+
+func TestPivotProfiles_FrameWithNoFunctionNameOmittedFromStack(t *testing.T) {
+	req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
+	locWithSentinelFn := int32(len(req.Dictionary.LocationTable))
+	req.Dictionary.LocationTable = append(req.Dictionary.LocationTable,
+		&v1development.Location{Lines: []*v1development.Line{{FunctionIndex: 0}}},
+	)
+	req.Dictionary.StackTable[stkKnownCall] = &v1development.Stack{
+		LocationIndices: []int32{locWithSentinelFn, locMainMain},
+	}
+
+	events := pivotProfiles(req)
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	v, ok := findField(t, events[0], fieldStack)
+	if !ok || v == "" {
+		t.Fatalf("expected non-empty %q field, got %v", fieldStack, v)
+	}
+	if v.(string) != "main.main" {
+		t.Errorf("sentinel fn frame must be omitted: got %q, want %q", v, "main.main")
+	}
+}
+
+func TestPivotProfiles_SampleWithNoLinkedTraceContextEmitsNoTraceOrSpanFields(t *testing.T) {
+	req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
+
+	events := pivotProfiles(req)
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if _, ok := findField(t, events[0], fieldTraceID); ok {
+		t.Errorf("expected no %q field when LinkIndex is unset", fieldTraceID)
+	}
+	if _, ok := findField(t, events[0], fieldSpanID); ok {
+		t.Errorf("expected no %q field when LinkIndex is unset", fieldSpanID)
+	}
+}
+
+// --- Mapping: correct values extracted from valid, well-formed data ---
 
 func TestPivotProfiles_OneSampleProducesOneEvent(t *testing.T) {
 	events := pivotProfiles(buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil))
@@ -164,11 +240,9 @@ func TestPivotProfiles_StackResolvesToKnownCallChain(t *testing.T) {
 	}
 }
 
-func TestPivotProfiles_TsOnlyMultipleTimestampsInOneSample(t *testing.T) {
-	// One sample carrying three timestamps, the ts-only shape allows this.
-	// Each timestamp must expand to its own event.
+func TestPivotProfiles_MultipleTimestampsWithoutValuesProducesOneEventPerTimestamp(t *testing.T) {
 	sample := &v1development.Sample{
-		StackIndex:         0,
+		StackIndex:         stkKnownCall,
 		TimestampsUnixNano: []uint64{fixedTS, fixedTS + 1_000_000_000, fixedTS + 2_000_000_000},
 	}
 	events := pivotProfiles(buildRequest([]*v1development.Sample{sample}, nil))
@@ -184,9 +258,9 @@ func TestPivotProfiles_TsOnlyMultipleTimestampsInOneSample(t *testing.T) {
 	}
 }
 
-func TestPivotProfiles_ZipShapeMultiTsValues(t *testing.T) {
+func TestPivotProfiles_PairedTimestampsAndValuesProduceOneEventPerPair(t *testing.T) {
 	sample := &v1development.Sample{
-		StackIndex:         0,
+		StackIndex:         stkKnownCall,
 		TimestampsUnixNano: []uint64{fixedTS, fixedTS + uint64(time.Minute), fixedTS + 2*uint64(time.Minute)},
 		Values:             []int64{25, 33, 424},
 	}
@@ -251,9 +325,8 @@ func TestPivotProfiles_SampleTimestampUsedWhenPresent(t *testing.T) {
 	}
 }
 
-func TestPivotProfiles_ProfileTimeFallsBackWhenSampleHasNoTimestamp(t *testing.T) {
-	// sample with no TimestampsUnixNano, must fall back to Profile.TimeUnixNano
-	req := buildRequest([]*v1development.Sample{{StackIndex: 0, Values: []int64{1}}}, nil)
+func TestPivotProfiles_UsesProfileTimeWhenSampleCarriesNoTimestamp(t *testing.T) {
+	req := buildRequest([]*v1development.Sample{{StackIndex: stkKnownCall, Values: []int64{1}}}, nil)
 	req.ResourceProfiles[0].ScopeProfiles[0].Profiles[0].TimeUnixNano = fixedTS
 
 	events := pivotProfiles(req)
@@ -261,22 +334,6 @@ func TestPivotProfiles_ProfileTimeFallsBackWhenSampleHasNoTimestamp(t *testing.T
 	want := time.Unix(0, int64(fixedTS)).UTC()
 	if !events[0].Timestamp.Equal(want) {
 		t.Errorf("timestamp: got %v, want %v", events[0].Timestamp, want)
-	}
-}
-
-func TestPivotProfiles_StackIndexZeroWithEmptyStackTableProducesEmptyStackField(t *testing.T) {
-	// StackIndex 0 is the null sentinel when no StackTable is present.
-	// The event must still be produced; fieldStack must be "" or absent, not a panic.
-	req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
-	req.Dictionary.StackTable = nil
-
-	events := pivotProfiles(req)
-
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
-	}
-	if v, ok := findField(t, events[0], fieldStack); ok && v != "" {
-		t.Errorf("expected empty %q field, got %q", fieldStack, v)
 	}
 }
 
@@ -307,71 +364,6 @@ func TestPivotProfiles_LinkIndexResolvesTraceAndSpanID(t *testing.T) {
 	}
 }
 
-func TestPivotProfiles_LocationSentinelProducesEmptyStack(t *testing.T) {
-	// LocationTable[0] is the null sentinel, a stack referencing only loc=0
-	// must not panic and must produce an empty (or absent) stack field.
-	req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
-	req.Dictionary.StackTable[stkKnownCall] = &v1development.Stack{
-		LocationIndices: []int32{0}, // sentinel location only
-	}
-
-	events := pivotProfiles(req)
-
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
-	}
-	if v, ok := findField(t, events[0], fieldStack); ok && v != "" {
-		t.Errorf("expected empty %q for sentinel location, got %q", fieldStack, v)
-	}
-}
-
-func TestPivotProfiles_FunctionSentinelFrameOmittedFromStack(t *testing.T) {
-	// FunctionTable[0] is the null sentinel, a location whose FunctionIndex=0
-	// must contribute no frame to the collapsed stack string.
-	req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
-	// Append a new location pointing at the function sentinel.
-	locWithSentinelFn := int32(len(req.Dictionary.LocationTable))
-	req.Dictionary.LocationTable = append(req.Dictionary.LocationTable,
-		&v1development.Location{Lines: []*v1development.Line{{FunctionIndex: 0}}},
-	)
-	// Stack: sentinel-fn frame first, then a real location.
-	req.Dictionary.StackTable[stkKnownCall] = &v1development.Stack{
-		LocationIndices: []int32{locWithSentinelFn, locMainMain},
-	}
-
-	events := pivotProfiles(req)
-
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
-	}
-	v, ok := findField(t, events[0], fieldStack)
-	if !ok || v == "" {
-		t.Fatalf("expected non-empty %q field, got %v", fieldStack, v)
-	}
-	stack, _ := v.(string)
-	if stack != "main.main" {
-		t.Errorf("sentinel fn frame must be omitted: got %q, want %q", stack, "main.main")
-	}
-}
-
-func TestPivotProfiles_LinkIndexZeroMeansNoLink(t *testing.T) {
-	// LinkIndex defaults to 0, the null sentinel. No trace/span fields must be emitted.
-	req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
-	// LinkTable absent; sample.LinkIndex == 0 by default.
-
-	events := pivotProfiles(req)
-
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
-	}
-	if _, ok := findField(t, events[0], fieldTraceID); ok {
-		t.Errorf("expected no %q field for sentinel LinkIndex", fieldTraceID)
-	}
-	if _, ok := findField(t, events[0], fieldSpanID); ok {
-		t.Errorf("expected no %q field for sentinel LinkIndex", fieldSpanID)
-	}
-}
-
 func TestPivotProfiles_Testdata(t *testing.T) {
 	files, _ := filepath.Glob("testdata/profiles/*.json")
 	for _, f := range files {
@@ -386,10 +378,10 @@ func TestPivotProfiles_Testdata(t *testing.T) {
 				t.Fatal("expected at least one event")
 			}
 
-			// len > 0
-			// every event: stack field non-empty
-			// every event: value field present and is int64
-			// every event: timestamp not zero
+			t.Error("not implemented")
+			// TODO: every event: stack field non-empty
+			// TODO: every event: value field present and is int64
+			// TODO: every event: timestamp not zero
 		})
 	}
 }
