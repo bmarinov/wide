@@ -46,7 +46,7 @@ func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 
 					// frames
 					var stackB strings.Builder
-					if sample.StackIndex > 0 {
+					if sample.StackIndex > 0 && len(data.Dictionary.StackTable) >= int(sample.StackIndex) {
 						stack := data.Dictionary.StackTable[sample.StackIndex]
 						for i, locIdx := range stack.LocationIndices {
 							loc := data.Dictionary.LocationTable[locIdx]
