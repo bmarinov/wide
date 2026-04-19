@@ -450,14 +450,26 @@ func TestPivotProfiles_SampleTimestampUsedWhenPresent(t *testing.T) {
 }
 
 func TestPivotProfiles_UsesProfileTimeWhenSampleCarriesNoTimestamp(t *testing.T) {
-	req := buildRequest([]*v1development.Sample{{StackIndex: stkKnownCall, Values: []int64{1}}}, nil)
+	expectedValue := int64(35)
+	req := buildRequest([]*v1development.Sample{{StackIndex: stkKnownCall, Values: []int64{int64(expectedValue)}}}, nil)
 	req.ResourceProfiles[0].ScopeProfiles[0].Profiles[0].TimeUnixNano = fixedTS
 
 	events := pivotProfiles(req)
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event got %d", len(events))
+	}
 
+	parsed := events[0]
 	want := time.Unix(0, int64(fixedTS)).UTC()
-	if !events[0].Timestamp.Equal(want) {
-		t.Errorf("timestamp: got %v, want %v", events[0].Timestamp, want)
+	if !parsed.Timestamp.Equal(want) {
+		t.Errorf("timestamp: got %v, want %v", parsed.Timestamp, want)
+	}
+	v, found := findField(t, parsed, knownSampleCol)
+	if !found {
+		t.Fatalf("expected field %s not found", knownSampleCol)
+	}
+	if expectedValue != v {
+		t.Errorf("expected profile value %v got %v", expectedValue, v)
 	}
 }
 

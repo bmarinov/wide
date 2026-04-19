@@ -3,6 +3,7 @@ package router
 import (
 	"encoding/hex"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -39,8 +40,16 @@ func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 				}
 
 				st := profile.SampleType
-				sType := data.Dictionary.StringTable[st.TypeStrindex]
-				sUnit := data.Dictionary.StringTable[st.UnitStrindex]
+				sType := dictStr(data.Dictionary, st.TypeStrindex)
+				sUnit := dictStr(data.Dictionary, st.UnitStrindex)
+				if sType == "" || sUnit == "" {
+					slog.Warn("skipping profile with empty sample type or unit",
+						"profile_id", hex.EncodeToString(profile.ProfileId),
+						"sample_type", sType,
+						"sample_unit", sUnit,
+					)
+					continue
+				}
 
 				for _, sample := range profile.Samples {
 
@@ -150,7 +159,8 @@ func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 						})
 					} else {
 						// unknown shape
-						// slog.Error()
+						slog.Error("processing sample with unknown shape", "profile_id", profile.ProfileId,
+							"len_ts", len(sample.TimestampsUnixNano), "len_values", len(sample.Values))
 					}
 				}
 			}
