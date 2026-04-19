@@ -24,38 +24,57 @@ func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 	for _, rProf := range data.GetResourceProfiles() {
 		for _, scopeProf := range rProf.ScopeProfiles {
 			for _, profile := range scopeProf.Profiles {
+
+				// validation (top-level)
+				if data.Dictionary == nil {
+					// invalid data
+					return nil
+				}
+				if profile.SampleType == nil {
+					continue
+				}
+
 				st := profile.SampleType
 				sType := data.Dictionary.StringTable[st.TypeStrindex]
 				sUnit := data.Dictionary.StringTable[st.UnitStrindex]
 
 				for _, sample := range profile.Samples {
-					// capacity = attrs + name/value + stack:
-					baseFields := make([]columnar.Field, 0, 2+len(rProf.Resource.Attributes))
 
-					for _, attrKV := range rProf.Resource.Attributes {
-						key := attrKV.GetKey()
-						if key == "" {
-							key = dictStr(data.Dictionary, attrKV.KeyStrindex)
+					var baseFields []columnar.Field
+					if rProf.Resource == nil {
+						// no attributes
+						baseFields = make([]columnar.Field, 0, 2)
+					} else {
+						// capacity = attrs + name/value + stack:
+						baseFields = make([]columnar.Field, 0, 2+len(rProf.Resource.Attributes))
+						for _, attrKV := range rProf.Resource.Attributes {
+							key := attrKV.GetKey()
+							if key == "" {
+								key = dictStr(data.Dictionary, attrKV.KeyStrindex)
+							}
+							val := anyValue(attrKV.Value, data.Dictionary)
+							baseFields = append(baseFields, columnar.Field{
+								Name:  key,
+								Value: val,
+							})
 						}
-						val := anyValue(attrKV.Value, data.Dictionary)
-						baseFields = append(baseFields, columnar.Field{
-							Name:  key,
-							Value: val,
-						})
 					}
 
 					// frames
 					var stackB strings.Builder
-					if sample.StackIndex > 0 && len(data.Dictionary.StackTable) >= int(sample.StackIndex) {
+					if sample.StackIndex > 0 &&
+						len(data.Dictionary.StackTable) > int(sample.StackIndex) {
 						stack := data.Dictionary.StackTable[sample.StackIndex]
 						for i, locIdx := range stack.LocationIndices {
-							loc := data.Dictionary.LocationTable[locIdx]
+							loc := dictLookup(data.Dictionary.LocationTable, locIdx)
+							if loc == nil {
+								continue
+							}
 							for _, stackLine := range loc.Lines {
 								fn := dictLookup(data.Dictionary.FunctionTable, stackLine.FunctionIndex)
 								if fn == nil {
 									continue
 								}
-								// TODO: safe lookups
 								fnName := dictStr(data.Dictionary, fn.NameStrindex)
 								_, _ = stackB.WriteString(fnName)
 								if i < len(stack.LocationIndices)-1 {
@@ -145,7 +164,7 @@ func dictStr(dict *v1development.ProfilesDictionary, idx int32) string {
 	return dict.StringTable[idx]
 }
 
-// dictStr safely indexes into a lookup table. Returns "" for index 0 (sentinel).
+// dictLookup safely indexes into a lookup table. Returns "" for index 0 (sentinel).
 func dictLookup[T any](lookupTable []T, idx int32) T {
 	if idx == 0 || lookupTable == nil || int(idx) >= len(lookupTable) {
 		var zero T

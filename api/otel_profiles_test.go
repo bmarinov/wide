@@ -138,19 +138,109 @@ func findField(t *testing.T, e columnar.Event, name string) (any, bool) {
 
 var fixedTS = uint64(time.Now().Truncate(time.Microsecond).UnixNano())
 
-// --- Stability: malformed or missing data must not panic; events are still produced ---
-
-func TestPivotProfiles_NilStackTableDoesNotPanic(t *testing.T) {
-	req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
-	req.Dictionary.StackTable = nil
-
-	events := pivotProfiles(req)
-
-	if len(events) != 1 {
-		t.Fatalf("expected 1 event, got %d", len(events))
+// malformed or missing data must not panic
+func TestPivotProfiles_Stability(t *testing.T) {
+	tests := []struct {
+		name       string
+		req        func() *v1development.ProfilesData
+		wantEvents int
+	}{
+		{
+			name: "nil dictionary yields no events",
+			req: func() *v1development.ProfilesData {
+				req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
+				req.Dictionary = nil
+				return req
+			},
+			wantEvents: 0,
+		},
+		{
+			name: "nil sample type yields no events",
+			req: func() *v1development.ProfilesData {
+				req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
+				req.ResourceProfiles[0].ScopeProfiles[0].Profiles[0].SampleType = nil
+				return req
+			},
+			wantEvents: 0,
+		},
+		{
+			name: "nil sample type in one profile does not suppress events from sibling profiles",
+			req: func() *v1development.ProfilesData {
+				req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
+				invalid := &v1development.Profile{SampleType: nil, Samples: []*v1development.Sample{oneSample(fixedTS)}}
+				req.ResourceProfiles[0].ScopeProfiles[0].Profiles = append(
+					[]*v1development.Profile{invalid},
+					req.ResourceProfiles[0].ScopeProfiles[0].Profiles...,
+				)
+				return req
+			},
+			wantEvents: 1,
+		},
+		{
+			name: "nil resource still yields event without attributes",
+			req: func() *v1development.ProfilesData {
+				req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
+				req.ResourceProfiles[0].Resource = nil
+				return req
+			},
+			wantEvents: 1,
+		},
+		{
+			name: "nil stack table still yields event without stack field",
+			req: func() *v1development.ProfilesData {
+				req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
+				req.Dictionary.StackTable = nil
+				return req
+			},
+			wantEvents: 1,
+		},
+		{
+			name: "stack index beyond table length still yields event without stack field",
+			req: func() *v1development.ProfilesData {
+				req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
+				req.ResourceProfiles[0].ScopeProfiles[0].Profiles[0].Samples[0].StackIndex = 99
+				return req
+			},
+			wantEvents: 1,
+		},
+		{
+			name: "location index beyond table length still yields event with partial stack",
+			req: func() *v1development.ProfilesData {
+				req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
+				req.Dictionary.StackTable[stkKnownCall].LocationIndices = []int32{99}
+				return req
+			},
+			wantEvents: 1,
+		},
+		{
+			name: "function index beyond table length still yields event with partial stack",
+			req: func() *v1development.ProfilesData {
+				req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
+				req.Dictionary.LocationTable[locMainMain].Lines[0].FunctionIndex = 99
+				return req
+			},
+			wantEvents: 1,
+		},
+		{
+			name: "link index beyond table length still yields event without trace fields",
+			req: func() *v1development.ProfilesData {
+				req := buildRequest([]*v1development.Sample{{
+					StackIndex:         stkKnownCall,
+					TimestampsUnixNano: []uint64{fixedTS},
+					LinkIndex:          99,
+				}}, nil)
+				return req
+			},
+			wantEvents: 1,
+		},
 	}
-	if v, ok := findField(t, events[0], fieldStack); ok && v != "" {
-		t.Errorf("expected empty %q field, got %q", fieldStack, v)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			events := pivotProfiles(tc.req())
+			if len(events) != tc.wantEvents {
+				t.Errorf("got %d events, want %d", len(events), tc.wantEvents)
+			}
+		})
 	}
 }
 
