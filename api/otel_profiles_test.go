@@ -246,6 +246,22 @@ func TestPivotProfiles_Stability(t *testing.T) {
 
 // --- Sentinel: index 0 in any table means "unset"; field absent from event, no crash ---
 
+func TestPivotProfiles_StackIndexZeroProducesEventWithNoStackField(t *testing.T) {
+	req := buildRequest([]*v1development.Sample{{
+		StackIndex:         0, // sentinel, "no stack recorded"
+		TimestampsUnixNano: []uint64{fixedTS},
+	}}, nil)
+
+	events := pivotProfiles(req)
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	if v, ok := findField(t, events[0], fieldStack); ok && v != "" {
+		t.Errorf("expected no %q field for sentinel StackIndex, got %q", fieldStack, v)
+	}
+}
+
 func TestPivotProfiles_UnresolvableLocationProducesEmptyStackField(t *testing.T) {
 	req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
 	req.Dictionary.StackTable[stkKnownCall] = &v1development.Stack{
@@ -453,6 +469,79 @@ func TestPivotProfiles_LinkIndexResolvesTraceAndSpanID(t *testing.T) {
 		t.Errorf("expected non-empty %q field", fieldSpanID)
 	}
 }
+
+func TestPivotProfiles_UnsymbolizedLocationProducedNoFrameInStack(t *testing.T) {
+	req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
+	locUnsymbolized := int32(len(req.Dictionary.LocationTable))
+	req.Dictionary.LocationTable = append(req.Dictionary.LocationTable,
+		&v1development.Location{Lines: nil},
+	)
+	stkUnsymbolized := int32(len(req.Dictionary.StackTable))
+	req.Dictionary.StackTable = append(req.Dictionary.StackTable,
+		&v1development.Stack{LocationIndices: []int32{locUnsymbolized, locGoexit}},
+	)
+	req.ResourceProfiles[0].ScopeProfiles[0].Profiles[0].Samples[0].StackIndex = stkUnsymbolized
+
+	events := pivotProfiles(req)
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	v, ok := findField(t, events[0], fieldStack)
+	if !ok {
+		t.Fatalf("missing %q field", fieldStack)
+	}
+	want := nativeFrame + ";" + "runtime.goexit"
+	if v != want {
+		t.Errorf("stack: got %q, want %q", v, want)
+	}
+}
+
+func TestPivotProfiles_InlinedFramesAllAppearInStack(t *testing.T) {
+	req := buildRequest([]*v1development.Sample{oneSample(fixedTS)}, nil)
+
+	strInlined := int32(len(req.Dictionary.StringTable))
+	req.Dictionary.StringTable = append(req.Dictionary.StringTable, "inlined.func")
+	strOuter := int32(len(req.Dictionary.StringTable))
+	req.Dictionary.StringTable = append(req.Dictionary.StringTable, "outer.func")
+
+	fnInlined := int32(len(req.Dictionary.FunctionTable))
+	req.Dictionary.FunctionTable = append(req.Dictionary.FunctionTable,
+		&v1development.Function{NameStrindex: strInlined},
+	)
+	fnOuter := int32(len(req.Dictionary.FunctionTable))
+	req.Dictionary.FunctionTable = append(req.Dictionary.FunctionTable,
+		&v1development.Function{NameStrindex: strOuter},
+	)
+
+	locInlined := int32(len(req.Dictionary.LocationTable))
+	req.Dictionary.LocationTable = append(req.Dictionary.LocationTable,
+		&v1development.Location{Lines: []*v1development.Line{
+			{FunctionIndex: fnInlined},
+			{FunctionIndex: fnOuter},
+		}},
+	)
+	stkInlined := int32(len(req.Dictionary.StackTable))
+	req.Dictionary.StackTable = append(req.Dictionary.StackTable,
+		&v1development.Stack{LocationIndices: []int32{locInlined, locGoexit}},
+	)
+	req.ResourceProfiles[0].ScopeProfiles[0].Profiles[0].Samples[0].StackIndex = stkInlined
+
+	events := pivotProfiles(req)
+
+	if len(events) != 1 {
+		t.Fatalf("expected 1 event, got %d", len(events))
+	}
+	v, ok := findField(t, events[0], fieldStack)
+	if !ok {
+		t.Fatalf("missing %q field", fieldStack)
+	}
+	want := "inlined.func;outer.func;runtime.goexit"
+	if v != want {
+		t.Errorf("stack: got %q, want %q", v, want)
+	}
+}
+
 
 func TestPivotProfiles_Testdata(t *testing.T) {
 	files, _ := filepath.Glob("testdata/profiles/*.json")

@@ -17,7 +17,10 @@ const (
 	fieldSpanID  = "span_id"
 )
 
-const stackDelim = ';'
+const (
+	stackDelim  = ';'
+	nativeFrame = "<unknown>"
+)
 
 func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 	var result []columnar.Event
@@ -61,27 +64,32 @@ func pivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 					}
 
 					// frames
-					var stackB strings.Builder
 					if sample.StackIndex > 0 &&
 						len(data.Dictionary.StackTable) > int(sample.StackIndex) {
 						stack := data.Dictionary.StackTable[sample.StackIndex]
-						for i, locIdx := range stack.LocationIndices {
+						var frames []string
+
+						for _, locIdx := range stack.LocationIndices {
 							loc := dictLookup(data.Dictionary.LocationTable, locIdx)
 							if loc == nil {
 								continue
 							}
-							for _, stackLine := range loc.Lines {
-								fn := dictLookup(data.Dictionary.FunctionTable, stackLine.FunctionIndex)
-								if fn == nil {
-									continue
-								}
-								fnName := dictStr(data.Dictionary, fn.NameStrindex)
-								_, _ = stackB.WriteString(fnName)
-								if i < len(stack.LocationIndices)-1 {
-									_, _ = stackB.WriteRune(stackDelim)
+							if len(loc.Lines) == 0 {
+								frames = append(frames, nativeFrame)
+							} else {
+								for _, stackLine := range loc.Lines {
+									fn := dictLookup(data.Dictionary.FunctionTable, stackLine.FunctionIndex)
+									if fn == nil {
+										continue
+									}
+									fnName := dictStr(data.Dictionary, fn.NameStrindex)
+									// todo: null check
+									frames = append(frames, fnName)
 								}
 							}
 						}
+						var stackB strings.Builder
+						stackB.WriteString(strings.Join(frames, string(stackDelim)))
 						baseFields = append(baseFields,
 							columnar.Field{Name: fieldStack, Value: stackB.String()})
 					}
