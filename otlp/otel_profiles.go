@@ -3,11 +3,11 @@ package otlp
 import (
 	"encoding/hex"
 	"fmt"
+	"github.com/bmarinov/sandbox-columnstore/internal/wide"
 	"log/slog"
 	"strings"
 	"time"
 
-	"github.com/bmarinov/sandbox-columnstore/internal/columnar"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	"go.opentelemetry.io/proto/otlp/profiles/v1development"
 )
@@ -24,13 +24,13 @@ const (
 	nativeFrame = "<unknown>"
 )
 
-func PivotProfiles(data *v1development.ProfilesData) []columnar.Event {
+func PivotProfiles(data *v1development.ProfilesData) []wide.Event {
 	if data.Dictionary == nil {
 		// invalid data
 		return nil
 	}
 
-	var result []columnar.Event
+	var result []wide.Event
 	for _, rProf := range data.GetResourceProfiles() {
 		for _, scopeProf := range rProf.ScopeProfiles {
 			for _, profile := range scopeProf.Profiles {
@@ -53,20 +53,20 @@ func PivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 
 				for _, sample := range profile.Samples {
 
-					var baseFields []columnar.Field
+					var baseFields []wide.Field
 					if rProf.Resource == nil {
 						// no attributes
-						baseFields = make([]columnar.Field, 0, 2)
+						baseFields = make([]wide.Field, 0, 2)
 					} else {
 						// capacity = attrs + name/value + stack:
-						baseFields = make([]columnar.Field, 0, 2+len(rProf.Resource.Attributes))
+						baseFields = make([]wide.Field, 0, 2+len(rProf.Resource.Attributes))
 						for _, attrKV := range rProf.Resource.Attributes {
 							key := attrKV.GetKey()
 							if key == "" {
 								key = dictStr(data.Dictionary, attrKV.KeyStrindex)
 							}
 							val := anyValue(attrKV.Value, data.Dictionary)
-							baseFields = append(baseFields, columnar.Field{
+							baseFields = append(baseFields, wide.Field{
 								Name:  key,
 								Value: val,
 							})
@@ -106,19 +106,19 @@ func PivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 							}
 						}
 						baseFields = append(baseFields,
-							columnar.Field{Name: fieldStack, Value: b.String()})
+							wide.Field{Name: fieldStack, Value: b.String()})
 					}
 
 					link := dictLookup(data.Dictionary.LinkTable, sample.LinkIndex)
 					if link != nil {
 						if len(link.TraceId) > 0 {
-							baseFields = append(baseFields, columnar.Field{
+							baseFields = append(baseFields, wide.Field{
 								Name:  fieldTraceID,
 								Value: hex.EncodeToString(link.TraceId),
 							})
 						}
 						if len(link.SpanId) > 0 {
-							baseFields = append(baseFields, columnar.Field{
+							baseFields = append(baseFields, wide.Field{
 								Name:  fieldSpanID,
 								Value: hex.EncodeToString(link.SpanId),
 							})
@@ -128,10 +128,10 @@ func PivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 					if len(sample.TimestampsUnixNano) > 0 && len(sample.Values) == 0 {
 						// ts-only shape
 						for _, sampleTS := range sample.TimestampsUnixNano {
-							fields := make([]columnar.Field, len(baseFields)+1)
+							fields := make([]wide.Field, len(baseFields)+1)
 							copy(fields, baseFields)
-							fields[len(fields)-1] = columnar.Field{Name: sType + "_" + sUnit, Value: int64(1)}
-							result = append(result, columnar.Event{
+							fields[len(fields)-1] = wide.Field{Name: sType + "_" + sUnit, Value: int64(1)}
+							result = append(result, wide.Event{
 								Timestamp: time.Unix(0, int64(sampleTS)).UTC(),
 								Fields:    fields,
 							})
@@ -140,19 +140,19 @@ func PivotProfiles(data *v1development.ProfilesData) []columnar.Event {
 						len(sample.TimestampsUnixNano) > 0 {
 						// zip
 						for i, sampleTS := range sample.TimestampsUnixNano {
-							row := columnar.Event{
+							row := wide.Event{
 								Timestamp: time.Unix(0, int64(sampleTS)).UTC(),
-								Fields:    make([]columnar.Field, len(baseFields)+1),
+								Fields:    make([]wide.Field, len(baseFields)+1),
 							}
 							copy(row.Fields, baseFields)
-							row.Fields[len(row.Fields)-1] = columnar.Field{Name: sType + "_" + sUnit, Value: sample.Values[i]}
+							row.Fields[len(row.Fields)-1] = wide.Field{Name: sType + "_" + sUnit, Value: sample.Values[i]}
 							result = append(result, row)
 						}
 					} else if len(sample.Values) == 1 && len(sample.TimestampsUnixNano) == 0 {
 						// aggregated
-						result = append(result, columnar.Event{
+						result = append(result, wide.Event{
 							Timestamp: time.Unix(0, int64(profile.TimeUnixNano)).UTC(),
-							Fields: append(baseFields, columnar.Field{
+							Fields: append(baseFields, wide.Field{
 								Name:  sType + "_" + sUnit,
 								Value: sample.Values[0],
 							}),

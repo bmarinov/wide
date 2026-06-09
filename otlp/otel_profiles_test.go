@@ -1,12 +1,12 @@
 package otlp
 
 import (
+	"github.com/bmarinov/sandbox-columnstore/internal/wide/widetest"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/bmarinov/sandbox-columnstore/internal/columnar"
 	"go.opentelemetry.io/proto/otlp/profiles/v1development"
 	"google.golang.org/protobuf/encoding/protojson"
 )
@@ -150,7 +150,7 @@ func TestPivotProfiles_StackIndexZeroProducesEventWithNoStackField(t *testing.T)
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
-	if v, ok := columnar.FindField(t, events[0], fieldStack); ok && v != "" {
+	if v, ok := widetest.FindField(t, events[0], fieldStack); ok && v != "" {
 		t.Errorf("expected no %q field for sentinel StackIndex, got %q", fieldStack, v)
 	}
 }
@@ -166,7 +166,7 @@ func TestPivotProfiles_UnresolvableLocationProducesEmptyStackField(t *testing.T)
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
-	if v, ok := columnar.FindField(t, events[0], fieldStack); ok && v != "" {
+	if v, ok := widetest.FindField(t, events[0], fieldStack); ok && v != "" {
 		t.Errorf("expected empty %q for sentinel location, got %q", fieldStack, v)
 	}
 }
@@ -186,7 +186,7 @@ func TestPivotProfiles_FrameWithNoFunctionNameOmittedFromStack(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
-	v, ok := columnar.FindField(t, events[0], fieldStack)
+	v, ok := widetest.FindField(t, events[0], fieldStack)
 	if !ok || v == "" {
 		t.Fatalf("expected non-empty %q field, got %v", fieldStack, v)
 	}
@@ -203,10 +203,10 @@ func TestPivotProfiles_SampleWithNoLinkedTraceContextEmitsNoTraceOrSpanFields(t 
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
-	if _, ok := columnar.FindField(t, events[0], fieldTraceID); ok {
+	if _, ok := widetest.FindField(t, events[0], fieldTraceID); ok {
 		t.Errorf("expected no %q field when LinkIndex is unset", fieldTraceID)
 	}
-	if _, ok := columnar.FindField(t, events[0], fieldSpanID); ok {
+	if _, ok := widetest.FindField(t, events[0], fieldSpanID); ok {
 		t.Errorf("expected no %q field when LinkIndex is unset", fieldSpanID)
 	}
 }
@@ -219,10 +219,10 @@ func TestPivotProfiles_OneSampleProducesOneEvent(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
-	if v, ok := columnar.FindField(t, events[0], fieldStack); !ok || v == "" {
+	if v, ok := widetest.FindField(t, events[0], fieldStack); !ok || v == "" {
 		t.Errorf("expected non-empty %q field", fieldStack)
 	}
-	if v, ok := columnar.FindField(t, events[0], knownSampleCol); !ok || v != int64(1) {
+	if v, ok := widetest.FindField(t, events[0], knownSampleCol); !ok || v != int64(1) {
 		t.Errorf("expected %q = 1 (implicit count), got %v", knownSampleCol, v)
 	}
 }
@@ -230,7 +230,7 @@ func TestPivotProfiles_OneSampleProducesOneEvent(t *testing.T) {
 func TestPivotProfiles_StackResolvesToKnownCallChain(t *testing.T) {
 	events := PivotProfiles(BuildProfilesRequest([]*v1development.Sample{OneSample(fixedTS)}, nil))
 
-	v, ok := columnar.FindField(t, events[0], fieldStack)
+	v, ok := widetest.FindField(t, events[0], fieldStack)
 	if !ok {
 		t.Fatalf("missing %q field", fieldStack)
 	}
@@ -274,7 +274,7 @@ func TestPivotProfiles_PairedTimestampsAndValuesProduceOneEventPerPair(t *testin
 		if !events[i].Timestamp.Equal(expectedTime) {
 			t.Errorf("event %d: timestamp got %v, want %v", i, events[i].Timestamp, expectedTime)
 		}
-		actualV, got := columnar.FindField(t, events[i], knownSampleCol)
+		actualV, got := widetest.FindField(t, events[i], knownSampleCol)
 		if !got {
 			t.Fatalf("field %s not found on %v", knownSampleCol, events[i])
 		}
@@ -306,10 +306,10 @@ func TestPivotProfiles_ResourceAttributesFlowToEveryEvent(t *testing.T) {
 	))
 
 	for i, e := range events {
-		if v, ok := columnar.FindField(t, e, "process.executable.name"); !ok || v != "columnstore" {
+		if v, ok := widetest.FindField(t, e, "process.executable.name"); !ok || v != "columnstore" {
 			t.Errorf("event %d: process.executable.name: got %v, want columnstore", i, v)
 		}
-		if v, ok := columnar.FindField(t, e, "service.name"); !ok || v != "sandbox-columnstore" {
+		if v, ok := widetest.FindField(t, e, "service.name"); !ok || v != "sandbox-columnstore" {
 			t.Errorf("event %d: service.name: got %v, want sandbox-columnstore", i, v)
 		}
 	}
@@ -339,7 +339,7 @@ func TestPivotProfiles_UsesProfileTimeWhenSampleCarriesNoTimestamp(t *testing.T)
 	if !parsed.Timestamp.Equal(want) {
 		t.Errorf("timestamp: got %v, want %v", parsed.Timestamp, want)
 	}
-	v, found := columnar.FindField(t, parsed, knownSampleCol)
+	v, found := widetest.FindField(t, parsed, knownSampleCol)
 	if !found {
 		t.Fatalf("expected field %s not found", knownSampleCol)
 	}
@@ -368,11 +368,11 @@ func TestPivotProfiles_LinkIndexResolvesTraceAndSpanID(t *testing.T) {
 	events := PivotProfiles(req)
 
 	expectedTraceID := "0102030405060708090a0b0c0d0e0f10"
-	if v, ok := columnar.FindField(t, events[0], fieldTraceID); !ok || v != expectedTraceID {
+	if v, ok := widetest.FindField(t, events[0], fieldTraceID); !ok || v != expectedTraceID {
 		t.Errorf("expected trace_id %s got %v", expectedTraceID, v)
 	}
 	expectedSpanID := "a0a1a2a3a4a5a6a7"
-	if v, ok := columnar.FindField(t, events[0], fieldSpanID); !ok || v != expectedSpanID {
+	if v, ok := widetest.FindField(t, events[0], fieldSpanID); !ok || v != expectedSpanID {
 		t.Errorf("expected span_id %s got %v", expectedSpanID, v)
 	}
 }
@@ -394,7 +394,7 @@ func TestPivotProfiles_UnsymbolizedLocationProducedNoFrameInStack(t *testing.T) 
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
-	v, ok := columnar.FindField(t, events[0], fieldStack)
+	v, ok := widetest.FindField(t, events[0], fieldStack)
 	if !ok {
 		t.Fatalf("missing %q field", fieldStack)
 	}
@@ -439,7 +439,7 @@ func TestPivotProfiles_InlinedFramesAllAppearInStack(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
-	v, ok := columnar.FindField(t, events[0], fieldStack)
+	v, ok := widetest.FindField(t, events[0], fieldStack)
 	if !ok {
 		t.Fatalf("missing %q field", fieldStack)
 	}
@@ -459,7 +459,7 @@ func TestPivotProfiles_MultipleTimestampsWithoutValuesProduceIndependentEvents(t
 		t.Fatalf("expected 2 events, got %d", len(events))
 	}
 	events[0].Fields[len(events[0].Fields)-1].Value = int64(999)
-	v, ok := columnar.FindField(t, events[1], knownSampleCol)
+	v, ok := widetest.FindField(t, events[1], knownSampleCol)
 	if !ok {
 		t.Fatalf("field %s missing on event 1", knownSampleCol)
 	}
@@ -477,7 +477,7 @@ func TestPivotProfiles_AggregatedSampleValueAppearsInEvent(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
-	v, ok := columnar.FindField(t, events[0], knownSampleCol)
+	v, ok := widetest.FindField(t, events[0], knownSampleCol)
 	if !ok || v != int64(42) {
 		t.Errorf("%s: got %v, want 42", knownSampleCol, v)
 	}
@@ -503,7 +503,7 @@ func TestPivotProfiles_Testdata(t *testing.T) {
 				if event.Timestamp.IsZero() {
 					t.Errorf("event with zero ts: idx %d, data: %v", i, event)
 				}
-				_, found := columnar.FindField(t, event, fieldStack)
+				_, found := widetest.FindField(t, event, fieldStack)
 				if !found {
 					t.Errorf("expected field %v not found", fieldStack)
 				}

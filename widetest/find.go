@@ -1,11 +1,12 @@
-package columnar
+package widetest
 
 import (
+	"github.com/bmarinov/sandbox-columnstore/internal/wide"
 	"testing"
 )
 
 // FindField looks up a named field in an event. Useful in assertions.
-func FindField(t *testing.T, e Event, name string) (any, bool) {
+func FindField(t *testing.T, e wide.Event, name string) (any, bool) {
 	t.Helper()
 	for _, f := range e.Fields {
 		if f.Name == name {

@@ -1,4 +1,4 @@
-package columnar
+package wide
 
 import (
 	"bufio"

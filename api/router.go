@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/bmarinov/sandbox-columnstore/internal/wide"
 	"io"
 	"log/slog"
 	"net/http"
@@ -47,7 +48,7 @@ func newEventsMux(store *columnar.Store) *http.ServeMux {
 			return
 		}
 
-		var params columnar.QueryParams
+		var params wide.QueryParams
 		err = json.NewDecoder(r.Body).Decode(&params)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -59,10 +60,10 @@ func newEventsMux(store *columnar.Store) *http.ServeMux {
 		}
 		w.Header().Set("Content-Type", "application/x-ndjson")
 
-		sink := columnar.NewStreamingSink(w)
+		sink := wide.NewStreamingSink(w)
 		err = store.Query(r.Context(), from, to, params, sink)
 		if err != nil {
-			if errors.Is(err, columnar.ErrInvalidQuery) {
+			if errors.Is(err, wide.ErrInvalidQuery) {
 				w.WriteHeader(http.StatusBadRequest)
 			} else {
 				w.WriteHeader(http.StatusInternalServerError)
@@ -71,7 +72,7 @@ func newEventsMux(store *columnar.Store) *http.ServeMux {
 		}
 	}))
 	mux.Handle("POST /events", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		err := processNDJSON(r.Body, func(e columnar.Event) error {
+		err := processNDJSON(r.Body, func(e wide.Event) error {
 			return store.Receive(r.Context(), e, nil)
 		})
 
@@ -93,7 +94,7 @@ func newEventsMux(store *columnar.Store) *http.ServeMux {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		var params columnar.QueryParams
+		var params wide.QueryParams
 		err = json.NewDecoder(r.Body).Decode(&params)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -104,10 +105,10 @@ func newEventsMux(store *columnar.Store) *http.ServeMux {
 			return
 		}
 
-		sink := &columnar.CollectSink{}
+		sink := &wide.CollectSink{}
 		err = store.Query(r.Context(), from, to, params, sink)
 		if err != nil {
-			if errors.Is(err, columnar.ErrInvalidQuery) {
+			if errors.Is(err, wide.ErrInvalidQuery) {
 				w.WriteHeader(http.StatusBadRequest)
 			} else {
 				w.WriteHeader(http.StatusInternalServerError)
@@ -140,13 +141,13 @@ func newEventsMux(store *columnar.Store) *http.ServeMux {
 	return mux
 }
 
-func processNDJSON(r io.Reader, handle func(columnar.Event) error) error {
+func processNDJSON(r io.Reader, handle func(wide.Event) error) error {
 	br := bufio.NewReaderSize(r, 64*1024)
 	dec := json.NewDecoder(br)
 	dec.UseNumber()
 
-	ev := columnar.Event{
-		Fields: make([]columnar.Field, 0, 64),
+	ev := wide.Event{
+		Fields: make([]wide.Field, 0, 64),
 	}
 	for {
 		err := parseLine(dec, &ev)
@@ -165,7 +166,7 @@ func processNDJSON(r io.Reader, handle func(columnar.Event) error) error {
 
 }
 
-func parseLine(dec *json.Decoder, dest *columnar.Event) error {
+func parseLine(dec *json.Decoder, dest *wide.Event) error {
 	t, err := dec.Token()
 	if err != nil {
 		return err
@@ -214,14 +215,14 @@ func parseLine(dec *json.Decoder, dest *columnar.Event) error {
 
 		switch v := valueToken.(type) {
 		case bool:
-			dest.Fields = append(dest.Fields, columnar.Field{Name: key, Value: v})
+			dest.Fields = append(dest.Fields, wide.Field{Name: key, Value: v})
 		case string:
-			dest.Fields = append(dest.Fields, columnar.Field{Name: key, Value: v})
+			dest.Fields = append(dest.Fields, wide.Field{Name: key, Value: v})
 		case json.Number:
 			if i, err := v.Int64(); err == nil {
-				dest.Fields = append(dest.Fields, columnar.Field{Name: key, Value: i})
+				dest.Fields = append(dest.Fields, wide.Field{Name: key, Value: i})
 			} else if f, err := v.Float64(); err == nil {
-				dest.Fields = append(dest.Fields, columnar.Field{Name: key, Value: f})
+				dest.Fields = append(dest.Fields, wide.Field{Name: key, Value: f})
 			} else {
 				return fmt.Errorf("field %q: unparseable number %q", key, v)
 			}

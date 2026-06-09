@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/bmarinov/sandbox-columnstore/internal/wide"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -44,14 +45,14 @@ func TestQueryPost(t *testing.T) {
 	// seed
 	s := columnar.New(t.Context(), columnar.Config{})
 	tsRef := time.Now()
-	seed := []columnar.Event{
+	seed := []wide.Event{
 		{
 			Timestamp: tsRef,
-			Fields:    []columnar.Field{{Name: "foo", Value: true}},
+			Fields:    []wide.Field{{Name: "foo", Value: true}},
 		},
 		{
 			Timestamp: tsRef.Add(time.Minute),
-			Fields:    []columnar.Field{{Name: "bar", Value: float64(3.14)}},
+			Fields:    []wide.Field{{Name: "bar", Value: float64(3.14)}},
 		},
 	}
 
@@ -108,24 +109,24 @@ func TestQueryPost_Json_Aggregation(t *testing.T) {
 	s := columnar.New(t.Context(), columnar.Config{})
 	tsRef := time.Now()
 
-	seed := []columnar.Event{
+	seed := []wide.Event{
 		{
 			Timestamp: tsRef,
-			Fields: []columnar.Field{
+			Fields: []wide.Field{
 				{Name: "host", Value: "a"},
 				{Name: "duration_ms", Value: float64(100)},
 			},
 		},
 		{
 			Timestamp: tsRef,
-			Fields: []columnar.Field{
+			Fields: []wide.Field{
 				{Name: "host", Value: "a"},
 				{Name: "duration_ms", Value: float64(150)},
 			},
 		},
 		{
 			Timestamp: tsRef,
-			Fields: []columnar.Field{
+			Fields: []wide.Field{
 				{Name: "host", Value: "b"},
 				{Name: "duration_ms", Value: float64(200)},
 			},
@@ -137,11 +138,11 @@ func TestQueryPost_Json_Aggregation(t *testing.T) {
 		wait()
 	}
 
-	body, err := json.Marshal(columnar.QueryParams{
+	body, err := json.Marshal(wide.QueryParams{
 		GroupBy: []string{"host"},
-		Aggregations: []columnar.Aggregation{
-			{Op: columnar.OpCount},
-			{Op: columnar.OpAvg, Column: "duration_ms"},
+		Aggregations: []wide.Aggregation{
+			{Op: wide.OpCount},
+			{Op: wide.OpAvg, Column: "duration_ms"},
 		},
 	})
 	if err != nil {
@@ -221,10 +222,10 @@ func TestQueryPost_Json_Windowing(t *testing.T) {
 
 	// window 0 (tsRef): two events -> COUNT=2
 	// window 1 (tsRef+1m): one event -> COUNT=1
-	events := []columnar.Event{
-		{Timestamp: tsRef, Fields: []columnar.Field{{Name: "val", Value: float64(10)}}},
-		{Timestamp: tsRef.Add(30 * time.Second), Fields: []columnar.Field{{Name: "val", Value: float64(20)}}},
-		{Timestamp: tsRef.Add(90 * time.Second), Fields: []columnar.Field{{Name: "val", Value: float64(5)}}},
+	events := []wide.Event{
+		{Timestamp: tsRef, Fields: []wide.Field{{Name: "val", Value: float64(10)}}},
+		{Timestamp: tsRef.Add(30 * time.Second), Fields: []wide.Field{{Name: "val", Value: float64(20)}}},
+		{Timestamp: tsRef.Add(90 * time.Second), Fields: []wide.Field{{Name: "val", Value: float64(5)}}},
 	}
 	for _, e := range events {
 		ack, wait := ackFn(t)
@@ -232,9 +233,9 @@ func TestQueryPost_Json_Windowing(t *testing.T) {
 		wait()
 	}
 
-	body, err := json.Marshal(columnar.QueryParams{
+	body, err := json.Marshal(wide.QueryParams{
 		Window:       window,
-		Aggregations: []columnar.Aggregation{{Op: columnar.OpCount}},
+		Aggregations: []wide.Aggregation{{Op: wide.OpCount}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -313,7 +314,7 @@ func TestQueryPost_Json_Windowing(t *testing.T) {
 
 func TestQueryPost_DuplicateSelect_Returns400(t *testing.T) {
 	s := columnar.New(t.Context(), columnar.Config{})
-	body, _ := json.Marshal(columnar.QueryParams{
+	body, _ := json.Marshal(wide.QueryParams{
 		Select: []string{"foo", "foo"},
 	})
 	from := time.Now().UTC().Format(time.RFC3339)
@@ -338,7 +339,7 @@ func TestQueryPost_DuplicateSelect_Returns400(t *testing.T) {
 
 func TestQueryPost_Json_DuplicateSelect_Returns400(t *testing.T) {
 	s := columnar.New(t.Context(), columnar.Config{})
-	body, _ := json.Marshal(columnar.QueryParams{
+	body, _ := json.Marshal(wide.QueryParams{
 		Select: []string{"foo", "foo"},
 	})
 	from := time.Now().UTC().Format(time.RFC3339)

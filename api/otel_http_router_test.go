@@ -3,6 +3,7 @@ package router
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/bmarinov/sandbox-columnstore/internal/wide"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -70,7 +71,7 @@ func TestProfilesIngest_ThreeSamplesLandInStore(t *testing.T) {
 	}
 
 	ack, wait := ackFn(t)
-	_ = s.Receive(t.Context(), columnar.Event{Timestamp: time.Now()}, ack)
+	_ = s.Receive(t.Context(), wide.Event{Timestamp: time.Now()}, ack)
 	wait()
 
 	if got := s.Stats().BufRows; got != 4 { // 3 profile events + 1 sync sentinel

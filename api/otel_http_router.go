@@ -3,6 +3,7 @@ package router
 import (
 	"bytes"
 	"compress/gzip"
+	"github.com/bmarinov/sandbox-columnstore/internal/wide"
 	"io"
 	"log/slog"
 	"net/http"
@@ -77,9 +78,9 @@ func newOTELMux(store *columnar.Store) *http.ServeMux {
 	return mux
 }
 
-func pivotMetrics(md pmetric.Metrics) []columnar.Event {
+func pivotMetrics(md pmetric.Metrics) []wide.Event {
 	// group fields by timestamp
-	byTS := make(map[tsKey][]columnar.Field)
+	byTS := make(map[tsKey][]wide.Field)
 
 	rms := md.ResourceMetrics()
 	for i := range rms.Len() {
@@ -88,9 +89,9 @@ func pivotMetrics(md pmetric.Metrics) []columnar.Event {
 		rKey := resourceKey(rm)
 
 		// extract resource attributes: service, host etc
-		var resourceFields []columnar.Field
+		var resourceFields []wide.Field
 		rm.Resource().Attributes().Range(func(k string, v pcommon.Value) bool {
-			resourceFields = append(resourceFields, columnar.Field{
+			resourceFields = append(resourceFields, wide.Field{
 				Name:  k,
 				Value: v.AsString(),
 			})
@@ -108,10 +109,10 @@ func pivotMetrics(md pmetric.Metrics) []columnar.Event {
 	}
 
 	// convert map to events
-	events := make([]columnar.Event, 0, len(byTS))
+	events := make([]wide.Event, 0, len(byTS))
 	for key, fields := range byTS {
 		ts := time.Unix(0, int64(key.ts)).UTC()
-		events = append(events, columnar.Event{
+		events = append(events, wide.Event{
 			Timestamp: ts,
 			Fields:    fields,
 		})
@@ -134,7 +135,7 @@ func resourceKey(rm pmetric.ResourceMetrics) string {
 	return strings.Join(attrs, ",")
 }
 
-func extractDataPoints(m pmetric.Metric, rKey string, resourceFields []columnar.Field, byTS map[tsKey][]columnar.Field) {
+func extractDataPoints(m pmetric.Metric, rKey string, resourceFields []wide.Field, byTS map[tsKey][]wide.Field) {
 	switch m.Type() {
 	case pmetric.MetricTypeGauge:
 		dps := m.Gauge().DataPoints()
@@ -167,7 +168,7 @@ func extractDataPoints(m pmetric.Metric, rKey string, resourceFields []columnar.
 	}
 }
 
-func addDataPoint(name string, dp pmetric.NumberDataPoint, rKey string, resourceFields []columnar.Field, byTS map[tsKey][]columnar.Field) {
+func addDataPoint(name string, dp pmetric.NumberDataPoint, rKey string, resourceFields []wide.Field, byTS map[tsKey][]wide.Field) {
 	// build column name
 	colName := name
 	dp.Attributes().Range(func(k string, v pcommon.Value) bool {
@@ -187,9 +188,9 @@ func addDataPoint(name string, dp pmetric.NumberDataPoint, rKey string, resource
 	// first time seeing this key, add resource fields
 	key := tsKey{resource: rKey, ts: uint64(dp.Timestamp())}
 	if _, exists := byTS[key]; !exists {
-		byTS[key] = append([]columnar.Field{}, resourceFields...)
+		byTS[key] = append([]wide.Field{}, resourceFields...)
 	}
-	byTS[key] = append(byTS[key], columnar.Field{Name: colName, Value: val})
+	byTS[key] = append(byTS[key], wide.Field{Name: colName, Value: val})
 }
 
 func readBody(r *http.Request) ([]byte, error) {

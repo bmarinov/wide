@@ -1,6 +1,7 @@
 package router
 
 import (
+	"github.com/bmarinov/sandbox-columnstore/internal/wide"
 	"testing"
 	"time"
 
@@ -28,7 +29,7 @@ func TestGRPCProfilesExport_SamplesLandInStore(t *testing.T) {
 	}
 
 	ack, wait := ackFn(t)
-	_ = s.Receive(t.Context(), columnar.Event{Timestamp: time.Now()}, ack)
+	_ = s.Receive(t.Context(), wide.Event{Timestamp: time.Now()}, ack)
 	wait()
 
 	if got := s.Stats().BufRows; got != 4 { // 3 profile events + 1 sync sentinel
@@ -57,7 +58,7 @@ func TestGRPCProfilesExport_NilDictionary_StoresNoEvents(t *testing.T) {
 	}
 
 	ack, wait := ackFn(t)
-	_ = s.Receive(t.Context(), columnar.Event{Timestamp: time.Now()}, ack)
+	_ = s.Receive(t.Context(), wide.Event{Timestamp: time.Now()}, ack)
 	wait()
 
 	if got := s.Stats().BufRows; got != 1 { // sentinel only, no profile events
