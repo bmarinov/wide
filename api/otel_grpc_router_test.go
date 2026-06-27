@@ -1,4 +1,4 @@
-package router
+package api
 
 import (
 	"github.com/bmarinov/sandbox-columnstore/internal/wide"
