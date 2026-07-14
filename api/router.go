@@ -2,19 +2,36 @@ package api
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/bmarinov/sandbox-columnstore/internal/wide"
 	"io"
 	"log/slog"
 	"net/http"
 	"time"
 
-	"github.com/bmarinov/sandbox-columnstore/internal/columnar"
+	"github.com/bmarinov/sandbox-columnstore/internal/wide"
 )
 
-func NewAppMux(store *columnar.Store) *http.ServeMux {
+// Receiver accepts events for storage. When ack is not nil it is called with
+// the outcome once the event has been applied.
+type Receiver interface {
+	Receive(ctx context.Context, e wide.Event, ack func(error)) error
+}
+
+// Querier streams the rows matching a query into sink.
+type Querier interface {
+	Query(ctx context.Context, from, to time.Time, q wide.QueryParams, sink wide.Sink) error
+}
+
+// Store is everything the API needs from a backing event store.
+type Store interface {
+	Receiver
+	Querier
+}
+
+func NewAppMux(store Store) *http.ServeMux {
 	otelMux := newOTELMux(store)
 	eventMux := newEventsMux(store)
 
@@ -34,7 +51,7 @@ func NewServer(mux *http.ServeMux, port int) *http.Server {
 	return &srv
 }
 
-func newEventsMux(store *columnar.Store) *http.ServeMux {
+func newEventsMux(store Store) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("POST /query", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		from, err := time.Parse(time.RFC3339, r.URL.Query().Get("from"))

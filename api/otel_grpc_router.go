@@ -8,7 +8,6 @@ import (
 
 	collectorv1 "go.opentelemetry.io/proto/otlp/collector/profiles/v1development"
 
-	"github.com/bmarinov/sandbox-columnstore/internal/columnar"
 	"github.com/bmarinov/sandbox-columnstore/internal/otlp"
 	"go.opentelemetry.io/proto/otlp/profiles/v1development"
 	"google.golang.org/grpc"
@@ -17,11 +16,11 @@ import (
 
 // profilesGRPCServer receives OTLP profiles over gRPC.
 type profilesGRPCServer struct {
-	store *columnar.Store
+	store Receiver
 	collectorv1.UnimplementedProfilesServiceServer
 }
 
-func newProfilesGRPCServer(s *columnar.Store) *profilesGRPCServer {
+func newProfilesGRPCServer(s Receiver) *profilesGRPCServer {
 	return &profilesGRPCServer{
 		store: s,
 	}
@@ -42,7 +41,7 @@ func (s *profilesGRPCServer) Export(ctx context.Context, req *collectorv1.Export
 	return &collectorv1.ExportProfilesServiceResponse{}, nil
 }
 
-func NewGRPCServer(store *columnar.Store, port int) (*grpc.Server, net.Listener, error) {
+func NewGRPCServer(store Receiver, port int) (*grpc.Server, net.Listener, error) {
 	var opts []grpc.ServerOption
 	if os.Getenv("PROFILES_DEBUG_DUMP") == "true" {
 		opts = append(opts, grpc.UnaryInterceptor(debugDumpInterceptor))

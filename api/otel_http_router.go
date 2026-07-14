@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	"compress/gzip"
-	"github.com/bmarinov/sandbox-columnstore/internal/wide"
 	"io"
 	"log/slog"
 	"net/http"
@@ -11,15 +10,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bmarinov/sandbox-columnstore/internal/columnar"
 	"github.com/bmarinov/sandbox-columnstore/internal/otlp"
+	"github.com/bmarinov/sandbox-columnstore/internal/wide"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/proto/otlp/profiles/v1development"
 	"google.golang.org/protobuf/encoding/protojson"
 )
 
-func newOTELMux(store *columnar.Store) *http.ServeMux {
+func newOTELMux(store Receiver) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	mux.Handle("POST /v1development/profiles", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
