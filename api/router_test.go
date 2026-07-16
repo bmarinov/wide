@@ -4,16 +4,18 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"github.com/bmarinov/sandbox-columnstore/internal/wide"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/bmarinov/sandbox-columnstore/internal/columnar"
+	"github.com/bmarinov/sandbox-columnstore/internal/wide"
 )
 
 func TestEventPost(t *testing.T) {
@@ -25,350 +27,217 @@ func TestEventPost(t *testing.T) {
 		_ = f.Close()
 	}()
 
-	request, err := http.NewRequest(http.MethodPost, "/events", f)
-	if err != nil {
-		t.Fatal(err)
-	}
-	request.Header.Set("Content-Type", "application/x-ndjson")
-
-	s := columnar.New(t.Context(), columnar.Config{})
-	mux := NewAppMux(s)
-	recorder := httptest.NewRecorder()
-	mux.ServeHTTP(recorder, request)
+	store := &fakeStore{}
+	recorder := serve(t, store, http.MethodPost, "/events", f, "application/x-ndjson")
 
 	if recorder.Code != http.StatusAccepted {
 		t.Errorf("expected %d got %d: %s", http.StatusAccepted, recorder.Code, recorder.Body.String())
 	}
+	if got := len(store.receivedEvents()); got != 3 {
+		t.Errorf("expected 3 events handed to the store, got %d", got)
+	}
 }
 
 func TestQueryPost(t *testing.T) {
-	// seed
-	s := columnar.New(t.Context(), columnar.Config{})
-	tsRef := time.Now()
-	seed := []wide.Event{
-		{
-			Timestamp: tsRef,
-			Fields:    []wide.Field{{Name: "foo", Value: true}},
+	tsRef := time.Date(2026, 3, 11, 16, 45, 51, 0, time.UTC)
+	store := &fakeStore{
+		columns: []wide.Column{
+			{Name: "foo", Type: wide.ColumnBool},
+			{Name: "bar", Type: wide.ColumnFloat64},
 		},
-		{
-			Timestamp: tsRef.Add(time.Minute),
-			Fields:    []wide.Field{{Name: "bar", Value: float64(3.14)}},
+		rows: []fakeRow{
+			{ts: tsRef, values: []any{true, nil}},
+			{ts: tsRef.Add(time.Minute), values: []any{nil, 3.14}},
 		},
 	}
 
-	for _, v := range seed {
-		ack, wait := ackFn(t)
-		_ = s.Receive(t.Context(), v, ack)
-		wait()
-	}
-
-	// query
-	body := strings.NewReader(`{"limit": 100}`)
-	from := tsRef.UTC().Format(time.RFC3339)
-	to := tsRef.Add(10 * time.Minute).UTC().Format(time.RFC3339)
-	request, err := http.NewRequest(http.MethodPost,
-		fmt.Sprintf("/query?from=%s&to=%s", from, to),
-		body,
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	request.Header.Set("Content-Type", "application/json")
-
-	mux := NewAppMux(s)
-	recorder := httptest.NewRecorder()
-	mux.ServeHTTP(recorder, request)
+	from, to := tsRef, tsRef.Add(10*time.Minute)
+	recorder := serve(t, store, http.MethodPost,
+		fmt.Sprintf("/query?from=%s&to=%s", from.Format(time.RFC3339), to.Format(time.RFC3339)),
+		strings.NewReader(`{"limit": 100}`), "application/json")
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("expected %d got %d: %s", http.StatusOK, recorder.Code, recorder.Body.String())
 	}
 
-	var rows []map[string]any
-	scanner := bufio.NewScanner(recorder.Body)
-	for scanner.Scan() {
-		var row map[string]any
-		if err := json.Unmarshal(scanner.Bytes(), &row); err != nil {
-			t.Fatalf("invalid json line: %s: %v", scanner.Text(), err)
-		}
-		rows = append(rows, row)
+	want := []map[string]any{
+		{"timestamp": tsRef.Format(time.RFC3339Nano), "foo": true},
+		{"timestamp": tsRef.Add(time.Minute).Format(time.RFC3339Nano), "bar": 3.14},
+	}
+	if got := decodeNDJSON(t, recorder.Body); !reflect.DeepEqual(got, want) {
+		t.Errorf("rows\n got %v\nwant %v", got, want)
 	}
 
-	if len(rows) != 2 {
-		t.Fatalf("expected 2 rows got %d", len(rows))
+	calls := store.queryCalls()
+	if len(calls) != 1 {
+		t.Fatalf("expected one query, got %d", len(calls))
 	}
-
-	// assert timestamp present on every row
-	for i, row := range rows {
-		if _, ok := row["timestamp"]; !ok {
-			t.Errorf("row %d missing timestamp", i)
-		}
+	if !calls[0].from.Equal(from) || !calls[0].to.Equal(to) {
+		t.Errorf("range forwarded as %v..%v, want %v..%v", calls[0].from, calls[0].to, from, to)
+	}
+	if calls[0].params.Limit != 100 {
+		t.Errorf("limit forwarded as %d, want 100", calls[0].params.Limit)
 	}
 }
 
-func TestQueryPost_Json_Aggregation(t *testing.T) {
-	s := columnar.New(t.Context(), columnar.Config{})
-	tsRef := time.Now()
-
-	seed := []wide.Event{
-		{
-			Timestamp: tsRef,
-			Fields: []wide.Field{
-				{Name: "host", Value: "a"},
-				{Name: "duration_ms", Value: float64(100)},
-			},
+func TestQueryPostJSON_AggregatedRows(t *testing.T) {
+	store := &fakeStore{
+		columns: []wide.Column{
+			{Name: "host", Type: wide.ColumnString},
+			{Name: "COUNT", Type: wide.ColumnFloat64},
+			{Name: "AVG(duration_ms)", Type: wide.ColumnFloat64},
 		},
-		{
-			Timestamp: tsRef,
-			Fields: []wide.Field{
-				{Name: "host", Value: "a"},
-				{Name: "duration_ms", Value: float64(150)},
-			},
-		},
-		{
-			Timestamp: tsRef,
-			Fields: []wide.Field{
-				{Name: "host", Value: "b"},
-				{Name: "duration_ms", Value: float64(200)},
-			},
+		rows: []fakeRow{
+			{values: []any{"a", float64(2), float64(125)}},
+			{values: []any{"b", float64(1), float64(200)}},
 		},
 	}
-	for _, v := range seed {
-		ack, wait := ackFn(t)
-		_ = s.Receive(t.Context(), v, ack)
-		wait()
-	}
-
-	body, err := json.Marshal(wide.QueryParams{
+	params := wide.QueryParams{
 		GroupBy: []string{"host"},
 		Aggregations: []wide.Aggregation{
 			{Op: wide.OpCount},
 			{Op: wide.OpAvg, Column: "duration_ms"},
 		},
-	})
-	if err != nil {
-		t.Fatal(err)
 	}
 
-	from := tsRef.UTC().Format(time.RFC3339)
-	to := tsRef.Add(10 * time.Minute).UTC().Format(time.RFC3339)
-
-	request, err := http.NewRequest(http.MethodPost,
-		fmt.Sprintf("/query/json?from=%s&to=%s", from, to),
-		bytes.NewReader(body),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	request.Header.Set("Content-Type", "application/json")
-
-	mux := NewAppMux(s)
-	recorder := httptest.NewRecorder()
-	mux.ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("http %d", recorder.Code)
-	}
-
-	var rows []map[string]any
-	if err := json.NewDecoder(recorder.Body).Decode(&rows); err != nil {
-		t.Fatalf("invalid json: %v, body: %s", err, recorder.Body.String())
-	}
-
-	if len(rows) != 2 {
-		t.Fatalf("expected 2 rows got %d", len(rows))
-	}
-
-	byHost := make(map[string]map[string]any)
-	for _, row := range rows {
-		host, ok := row["host"].(string)
-		if !ok {
-			t.Fatal("host field not found")
-		}
-		byHost[host] = row
-	}
-
-	v, ok := byHost["a"]
-	if !ok {
-		t.Fatal()
-	}
-	aCount := v["COUNT"].(float64)
-	if aCount != 2 {
-		t.Errorf("expected 2 got %f", aCount)
-	}
-	aAvg := v["AVG(duration_ms)"].(float64)
-	if aAvg != float64(125) {
-		t.Errorf("unexpected avg %f", aAvg)
-	}
-
-	bCount, ok := byHost["b"]["COUNT"]
-	if !ok || bCount.(float64) != 1 {
-		t.Errorf("host b: expected COUNT=1 got %v", bCount)
-	}
-	if bAvg, ok := byHost["b"]["AVG(duration_ms)"]; !ok || bAvg.(float64) != 200 {
-		t.Errorf("host b: expected avg 5 got %v", bAvg)
-	}
-
-	for _, row := range rows {
-		if _, ok := row["ts"]; ok {
-			t.Errorf("aggregate result should not have ts field, got %v", row["ts"])
-		}
-	}
-}
-
-func TestQueryPost_Json_Windowing(t *testing.T) {
-	s := columnar.New(t.Context(), columnar.Config{})
-	const window = time.Minute
-	tsRef := time.Now().Truncate(window)
-
-	// window 0 (tsRef): two events -> COUNT=2
-	// window 1 (tsRef+1m): one event -> COUNT=1
-	events := []wide.Event{
-		{Timestamp: tsRef, Fields: []wide.Field{{Name: "val", Value: float64(10)}}},
-		{Timestamp: tsRef.Add(30 * time.Second), Fields: []wide.Field{{Name: "val", Value: float64(20)}}},
-		{Timestamp: tsRef.Add(90 * time.Second), Fields: []wide.Field{{Name: "val", Value: float64(5)}}},
-	}
-	for _, e := range events {
-		ack, wait := ackFn(t)
-		_ = s.Receive(t.Context(), e, ack)
-		wait()
-	}
-
-	body, err := json.Marshal(wide.QueryParams{
-		Window:       window,
-		Aggregations: []wide.Aggregation{{Op: wide.OpCount}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	from := tsRef.UTC().Format(time.RFC3339)
-	to := tsRef.Add(10 * time.Minute).UTC().Format(time.RFC3339)
-	request, err := http.NewRequest(http.MethodPost,
-		fmt.Sprintf("/query/json?from=%s&to=%s", from, to),
-		bytes.NewReader(body),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	request.Header.Set("Content-Type", "application/json")
-
-	mux := NewAppMux(s)
-	recorder := httptest.NewRecorder()
-	mux.ServeHTTP(recorder, request)
+	recorder := queryJSON(t, store, params)
 
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("http %d: %s", recorder.Code, recorder.Body.String())
 	}
-
-	var rows []map[string]any
-	if err := json.NewDecoder(recorder.Body).Decode(&rows); err != nil {
-		t.Fatalf("invalid json: %v, body: %s", err, recorder.Body.String())
+	want := []map[string]any{
+		{"host": "a", "COUNT": float64(2), "AVG(duration_ms)": float64(125)},
+		{"host": "b", "COUNT": float64(1), "AVG(duration_ms)": float64(200)},
+	}
+	if got := decodeJSONRows(t, recorder.Body); !reflect.DeepEqual(got, want) {
+		t.Errorf("rows\n got %v\nwant %v", got, want)
 	}
 
-	if len(rows) != 2 {
-		t.Fatalf("expected 2 bucket rows got %d: %v", len(rows), rows)
+	calls := store.queryCalls()
+	if len(calls) != 1 {
+		t.Fatalf("expected one query, got %d", len(calls))
 	}
-
-	// every bucket row must carry a ts
-	for i, row := range rows {
-		if _, ok := row["ts"]; !ok {
-			t.Errorf("row %d missing ts field", i)
-		}
-	}
-
-	// parse ts -> COUNT; compare instants so the test is tz-agnostic
-	type bucketResult struct {
-		ts    time.Time
-		count float64
-	}
-	buckets := make([]bucketResult, 0, len(rows))
-	for _, row := range rows {
-		tsStr, _ := row["ts"].(string)
-		ts, err := time.Parse(time.RFC3339Nano, tsStr)
-		if err != nil {
-			t.Fatalf("unparseable ts %q: %v", tsStr, err)
-		}
-		count, ok := row["COUNT"].(float64)
-		if !ok {
-			t.Fatalf("COUNT missing or wrong type in row %v", row)
-		}
-		buckets = append(buckets, bucketResult{ts: ts, count: count})
-	}
-
-	countAt := func(want time.Time) float64 {
-		for _, b := range buckets {
-			if b.ts.Equal(want) {
-				return b.count
-			}
-		}
-		return -1
-	}
-
-	if got := countAt(tsRef); got != 2 {
-		t.Errorf("window 0: want COUNT=2, got %v", got)
-	}
-	if got := countAt(tsRef.Add(window)); got != 1 {
-		t.Errorf("window 1: want COUNT=1, got %v", got)
+	if !reflect.DeepEqual(calls[0].params.GroupBy, params.GroupBy) || !reflect.DeepEqual(calls[0].params.Aggregations, params.Aggregations) {
+		t.Errorf("params forwarded as %+v, want %+v", calls[0].params, params)
 	}
 }
 
-func TestQueryPost_DuplicateSelect_Returns400(t *testing.T) {
-	s := columnar.New(t.Context(), columnar.Config{})
-	body, _ := json.Marshal(wide.QueryParams{
-		Select: []string{"foo", "foo"},
-	})
-	from := time.Now().UTC().Format(time.RFC3339)
-	to := time.Now().Add(time.Minute).UTC().Format(time.RFC3339)
-	request, err := http.NewRequest(http.MethodPost,
-		fmt.Sprintf("/query?from=%s&to=%s", from, to),
-		bytes.NewReader(body),
-	)
-	if err != nil {
-		t.Fatal(err)
+func TestQueryPostJSON_BucketRowsCarryTimestamp(t *testing.T) {
+	tsRef := time.Date(2026, 3, 11, 16, 45, 0, 0, time.UTC)
+	store := &fakeStore{
+		columns: []wide.Column{{Name: "COUNT", Type: wide.ColumnFloat64}},
+		rows: []fakeRow{
+			{ts: tsRef, values: []any{float64(2)}},
+			{ts: tsRef.Add(time.Minute), values: []any{float64(1)}},
+		},
 	}
-	request.Header.Set("Content-Type", "application/json")
-
-	mux := NewAppMux(s)
-	recorder := httptest.NewRecorder()
-	mux.ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusBadRequest {
-		t.Errorf("expected %d got %d", http.StatusBadRequest, recorder.Code)
+	params := wide.QueryParams{
+		Window:       time.Minute,
+		Aggregations: []wide.Aggregation{{Op: wide.OpCount}},
 	}
-}
 
-func TestQueryPost_Json_DuplicateSelect_Returns400(t *testing.T) {
-	s := columnar.New(t.Context(), columnar.Config{})
-	body, _ := json.Marshal(wide.QueryParams{
-		Select: []string{"foo", "foo"},
-	})
-	from := time.Now().UTC().Format(time.RFC3339)
-	to := time.Now().Add(time.Minute).UTC().Format(time.RFC3339)
-	request, err := http.NewRequest(http.MethodPost,
-		fmt.Sprintf("/query/json?from=%s&to=%s", from, to),
-		bytes.NewReader(body),
-	)
-	if err != nil {
-		t.Fatal(err)
+	recorder := queryJSON(t, store, params)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("http %d: %s", recorder.Code, recorder.Body.String())
 	}
-	request.Header.Set("Content-Type", "application/json")
-
-	mux := NewAppMux(s)
-	recorder := httptest.NewRecorder()
-	mux.ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusBadRequest {
-		t.Errorf("expected %d got %d", http.StatusBadRequest, recorder.Code)
+	want := []map[string]any{
+		{"ts": tsRef.Format(time.RFC3339Nano), "COUNT": float64(2)},
+		{"ts": tsRef.Add(time.Minute).Format(time.RFC3339Nano), "COUNT": float64(1)},
+	}
+	if got := decodeJSONRows(t, recorder.Body); !reflect.DeepEqual(got, want) {
+		t.Errorf("rows\n got %v\nwant %v", got, want)
+	}
+	if calls := store.queryCalls(); len(calls) != 1 || calls[0].params.Window != time.Minute {
+		t.Errorf("window not forwarded: %+v", calls)
 	}
 }
 
-func ackFn(t *testing.T) (func(error), func()) {
+func TestQuery_InvalidRequestIsRejectedBeforeTheStore(t *testing.T) {
+	validRange := "from=2026-03-11T16:45:00Z&to=2026-03-11T16:55:00Z"
+	tests := []struct {
+		name  string
+		query string
+		body  string
+	}{
+		{name: "duplicate select column", query: validRange, body: `{"select": ["foo", "foo"]}`},
+		{name: "group by without aggregation", query: validRange, body: `{"groupBy": ["host"]}`},
+		{name: "unparseable from", query: "from=yesterday&to=2026-03-11T16:55:00Z", body: `{}`},
+		{name: "missing to", query: "from=2026-03-11T16:45:00Z", body: `{}`},
+		{name: "malformed body", query: validRange, body: `{"limit": `},
+	}
+	for _, path := range []string{"/query", "/query/json"} {
+		for _, tc := range tests {
+			t.Run(path+" "+tc.name, func(t *testing.T) {
+				store := &fakeStore{}
+				recorder := serve(t, store, http.MethodPost, path+"?"+tc.query, strings.NewReader(tc.body), "application/json")
+
+				if recorder.Code != http.StatusBadRequest {
+					t.Errorf("expected %d got %d", http.StatusBadRequest, recorder.Code)
+				}
+				if calls := store.queryCalls(); len(calls) != 0 {
+					t.Errorf("store was queried %d times for an invalid request", len(calls))
+				}
+			})
+		}
+	}
+}
+
+func TestQuery_StoreErrorsMapToStatusCodes(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{name: "invalid query", err: fmt.Errorf("bad column: %w", wide.ErrInvalidQuery), want: http.StatusBadRequest},
+		{name: "any other failure", err: errors.New("segment unreadable"), want: http.StatusInternalServerError},
+	}
+	for _, path := range []string{"/query", "/query/json"} {
+		for _, tc := range tests {
+			t.Run(path+" "+tc.name, func(t *testing.T) {
+				store := &fakeStore{queryErr: tc.err}
+				recorder := serve(t, store, http.MethodPost,
+					path+"?from=2026-03-11T16:45:00Z&to=2026-03-11T16:55:00Z",
+					strings.NewReader(`{"limit": 10}`), "application/json")
+
+				if recorder.Code != tc.want {
+					t.Errorf("expected %d got %d", tc.want, recorder.Code)
+				}
+			})
+		}
+	}
+}
+
+func queryJSON(t *testing.T, store Store, params wide.QueryParams) *httptest.ResponseRecorder {
 	t.Helper()
-	done := make(chan error, 1)
-	return func(err error) { done <- err },
-		func() {
-			if err := <-done; err != nil {
-				t.Fatal(err)
-			}
+	body, err := json.Marshal(params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return serve(t, store, http.MethodPost,
+		"/query/json?from=2026-03-11T16:45:00Z&to=2026-03-11T16:55:00Z",
+		bytes.NewReader(body), "application/json")
+}
+
+func decodeNDJSON(t *testing.T, r io.Reader) []map[string]any {
+	t.Helper()
+	var rows []map[string]any
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		var row map[string]any
+		if err := json.Unmarshal(scanner.Bytes(), &row); err != nil {
+			t.Fatalf("invalid json line %q: %v", scanner.Text(), err)
 		}
+		rows = append(rows, row)
+	}
+	return rows
+}
+
+func decodeJSONRows(t *testing.T, r io.Reader) []map[string]any {
+	t.Helper()
+	var rows []map[string]any
+	if err := json.NewDecoder(r).Decode(&rows); err != nil {
+		t.Fatalf("invalid json: %v", err)
+	}
+	return rows
 }

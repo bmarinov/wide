@@ -3,15 +3,12 @@ package api
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/bmarinov/sandbox-columnstore/internal/wide"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/bmarinov/sandbox-columnstore/internal/columnar"
 	"github.com/bmarinov/sandbox-columnstore/internal/otlp"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/proto/otlp/profiles/v1development"
@@ -25,20 +22,14 @@ func TestMetricsIngest(t *testing.T) {
 	}
 	defer f.Close()
 
-	s := columnar.New(t.Context(), columnar.Config{})
-	mux := NewAppMux(s)
-
-	request, err := http.NewRequest(http.MethodPost, "/v1/metrics", f)
-	if err != nil {
-		t.Fatal(err)
-	}
-	request.Header.Set("Content-Type", "application/json")
-
-	recorder := httptest.NewRecorder()
-	mux.ServeHTTP(recorder, request)
+	store := &fakeStore{}
+	recorder := serve(t, store, http.MethodPost, "/v1/metrics", f, "application/json")
 
 	if recorder.Code != http.StatusAccepted {
 		t.Fatalf("expected %d got %d: %s", http.StatusAccepted, recorder.Code, recorder.Body.String())
+	}
+	if got := len(store.receivedEvents()); got != 7 {
+		t.Errorf("expected 7 pivoted events (one per resource and timestamp), got %d", got)
 	}
 }
 
@@ -54,46 +45,26 @@ func TestProfilesIngest_ThreeSamplesLandInStore(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	s := columnar.New(t.Context(), columnar.Config{})
-	mux := NewAppMux(s)
-
-	r, err := http.NewRequest(http.MethodPost, "/v1development/profiles", bytes.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	r.Header.Set("Content-Type", "application/json")
-
-	recorder := httptest.NewRecorder()
-	mux.ServeHTTP(recorder, r)
+	store := &fakeStore{}
+	recorder := serve(t, store, http.MethodPost, "/v1development/profiles", bytes.NewReader(body), "application/json")
 
 	if recorder.Code != http.StatusAccepted {
 		t.Fatalf("expected %d got %d: %s", http.StatusAccepted, recorder.Code, recorder.Body.String())
 	}
-
-	ack, wait := ackFn(t)
-	_ = s.Receive(t.Context(), wide.Event{Timestamp: time.Now()}, ack)
-	wait()
-
-	if got := s.Stats().BufRows; got != 4 { // 3 profile events + 1 sync sentinel
-		t.Errorf("expected 4 rows (3 profile + 1 sentinel), got %d", got)
+	if got := len(store.receivedEvents()); got != 3 {
+		t.Errorf("expected 3 profile events, got %d", got)
 	}
 }
 
 func TestProfilesIngest_InvalidBody_Returns400(t *testing.T) {
-	s := columnar.New(t.Context(), columnar.Config{})
-	mux := NewAppMux(s)
-
-	r, err := http.NewRequest(http.MethodPost, "/v1development/profiles", strings.NewReader("not json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	r.Header.Set("Content-Type", "application/json")
-
-	recorder := httptest.NewRecorder()
-	mux.ServeHTTP(recorder, r)
+	store := &fakeStore{}
+	recorder := serve(t, store, http.MethodPost, "/v1development/profiles", strings.NewReader("not json"), "application/json")
 
 	if recorder.Code != http.StatusBadRequest {
 		t.Errorf("expected 400 got %d", recorder.Code)
+	}
+	if got := len(store.receivedEvents()); got != 0 {
+		t.Errorf("expected nothing stored, got %d events", got)
 	}
 }
 
