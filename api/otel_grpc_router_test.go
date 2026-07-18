@@ -6,7 +6,7 @@ import (
 
 	collectorv1 "go.opentelemetry.io/proto/otlp/collector/profiles/v1development"
 
-	"github.com/bmarinov/sandbox-columnstore/internal/otlp"
+	"github.com/bmarinov/wide/otlp"
 	"go.opentelemetry.io/proto/otlp/profiles/v1development"
 )
 

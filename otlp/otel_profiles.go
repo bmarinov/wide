@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bmarinov/sandbox-columnstore/internal/wide"
+	"github.com/bmarinov/wide"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	"go.opentelemetry.io/proto/otlp/profiles/v1development"
 )

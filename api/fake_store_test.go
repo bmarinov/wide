@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bmarinov/sandbox-columnstore/internal/wide"
+	"github.com/bmarinov/wide"
 )
 
 // fakeStore records what the handlers hand it and serves a canned result set.

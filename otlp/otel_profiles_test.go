@@ -1,7 +1,7 @@
 package otlp
 
 import (
-	"github.com/bmarinov/sandbox-columnstore/internal/wide/widetest"
+	"github.com/bmarinov/wide/widetest"
 	"os"
 	"path/filepath"
 	"testing"

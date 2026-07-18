@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bmarinov/sandbox-columnstore/internal/otlp"
+	"github.com/bmarinov/wide/otlp"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/proto/otlp/profiles/v1development"
 	"google.golang.org/protobuf/encoding/protojson"

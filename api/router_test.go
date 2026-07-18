@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bmarinov/sandbox-columnstore/internal/wide"
+	"github.com/bmarinov/wide"
 )
 
 func TestEventPost(t *testing.T) {

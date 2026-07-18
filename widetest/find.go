@@ -3,7 +3,7 @@ package widetest
 import (
 	"testing"
 
-	"github.com/bmarinov/sandbox-columnstore/internal/wide"
+	"github.com/bmarinov/wide"
 )
 
 // FindField looks up a named field in an event. Useful in assertions.

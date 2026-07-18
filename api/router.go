@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/bmarinov/sandbox-columnstore/internal/wide"
+	"github.com/bmarinov/wide"
 )
 
 // Receiver accepts events for storage. When ack is not nil it is called with

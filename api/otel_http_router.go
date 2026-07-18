@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/bmarinov/sandbox-columnstore/internal/otlp"
-	"github.com/bmarinov/sandbox-columnstore/internal/wide"
+	"github.com/bmarinov/wide"
+	"github.com/bmarinov/wide/otlp"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/proto/otlp/profiles/v1development"
