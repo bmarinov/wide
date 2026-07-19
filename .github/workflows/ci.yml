@@ -1,0 +1,23 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test -race ./...
+      - name: The API must not depend on a store
+        run: |
+          if go list -deps ./... | grep -E 'columnstore'; then
+            echo "a store package is in the dependency graph"
+            exit 1
+          fi
