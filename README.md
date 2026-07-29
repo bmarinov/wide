@@ -70,6 +70,16 @@ type Querier interface {
 
 `Query` calls `sink.Schema` once with the output columns and `sink.Row` once per row, `nil` where a row has no value. Wrap `wide.ErrInvalidQuery` for queries the store cannot serve, e.g. `AVG` over a string column.
 
+Run the contract suite against the implementation:
+
+```go
+func TestStoreContract(t *testing.T) {
+	storetest.Run(t, func(t *testing.T) api.Store {
+		return mystore.New(t.Context())
+	})
+}
+```
+
 Wiring:
 
 ```go
