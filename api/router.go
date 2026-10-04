@@ -9,13 +9,16 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"slices"
 	"time"
 
 	"github.com/bmarinov/wide"
 )
 
-// Receiver accepts events for storage. When ack is not nil it is called with
-// the outcome once the event has been applied.
+// Receiver accepts events for storage. The receiver owns e and may keep it
+// after Receive returns.
+//
+// When ack is not nil it is called with the result once the event has been applied.
 type Receiver interface {
 	Receive(ctx context.Context, e wide.Event, ack func(error)) error
 }
@@ -89,7 +92,11 @@ func newEventsMux(store Store) *http.ServeMux {
 		}
 	}))
 	mux.Handle("POST /events", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received := time.Now().UTC()
 		err := processNDJSON(r.Body, func(e wide.Event) error {
+			if e.Timestamp.IsZero() {
+				e.Timestamp = received
+			}
 			return store.Receive(r.Context(), e, nil)
 		})
 
@@ -175,7 +182,10 @@ func processNDJSON(r io.Reader, handle func(wide.Event) error) error {
 			return err
 		}
 
-		err = handle(ev)
+		// the store may keep the event after Receive returns, so it gets its own fields
+		e := ev
+		e.Fields = slices.Clone(ev.Fields)
+		err = handle(e)
 		if err != nil {
 			return err
 		}
@@ -193,7 +203,7 @@ func parseLine(dec *json.Decoder, dest *wide.Event) error {
 		return fmt.Errorf("unexpected token %v", t)
 	}
 
-	// TODO: measure
+	dest.Timestamp = time.Time{}
 	dest.Fields = dest.Fields[:0]
 
 	for dec.More() {

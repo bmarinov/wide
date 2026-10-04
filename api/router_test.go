@@ -33,8 +33,42 @@ func TestEventPost(t *testing.T) {
 	if recorder.Code != http.StatusAccepted {
 		t.Errorf("expected %d got %d: %s", http.StatusAccepted, recorder.Code, recorder.Body.String())
 	}
-	if got := len(store.receivedEvents()); got != 3 {
-		t.Errorf("expected 3 events handed to the store, got %d", got)
+	tsRef := time.Date(2026, 3, 11, 16, 45, 51, 0, time.UTC)
+	want := []wide.Event{
+		{Timestamp: tsRef, Fields: []wide.Field{{Name: "route", Value: "/blap"}, {Name: "status", Value: int64(401)}}},
+		{Timestamp: tsRef, Fields: []wide.Field{{Name: "host", Value: "localhost"}, {Name: "message", Value: "user foo bar"}}},
+		{Timestamp: tsRef, Fields: []wide.Field{{Name: "trace_id", Value: "foo_123"}}},
+	}
+	if got := store.receivedEvents(); !reflect.DeepEqual(got, want) {
+		t.Errorf("events\n got %v\nwant %v", got, want)
+	}
+}
+
+func TestEventPost_LineWithoutTimestampGetsReceiveTime(t *testing.T) {
+	body := `{"route": "/a"}` + "\n" +
+		`{"ts": "2026-03-11T16:45:51.000Z", "route": "/b"}` + "\n" +
+		`{"route": "/c"}` + "\n"
+
+	store := &fakeStore{}
+	before := time.Now()
+	recorder := serve(t, store, http.MethodPost, "/events", strings.NewReader(body), "application/x-ndjson")
+	after := time.Now()
+
+	if recorder.Code != http.StatusAccepted {
+		t.Fatalf("expected %d got %d: %s", http.StatusAccepted, recorder.Code, recorder.Body.String())
+	}
+	events := store.receivedEvents()
+	if len(events) != 3 {
+		t.Fatalf("expected 3 events handed to the store, got %d", len(events))
+	}
+	for _, i := range []int{0, 2} {
+		if ts := events[i].Timestamp; ts.Before(before) || ts.After(after) {
+			t.Errorf("event %d: timestamp got %v, want the receive time between %v and %v", i, ts, before, after)
+		}
+	}
+	tsRef := time.Date(2026, 3, 11, 16, 45, 51, 0, time.UTC)
+	if !events[1].Timestamp.Equal(tsRef) {
+		t.Errorf("event 1: timestamp got %v, want %v", events[1].Timestamp, tsRef)
 	}
 }
 
