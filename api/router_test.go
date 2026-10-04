@@ -44,6 +44,34 @@ func TestEventPost(t *testing.T) {
 	}
 }
 
+func TestEventPost_LineWithoutTimestampGetsReceiveTime(t *testing.T) {
+	body := `{"route": "/a"}` + "\n" +
+		`{"ts": "2026-03-11T16:45:51.000Z", "route": "/b"}` + "\n" +
+		`{"route": "/c"}` + "\n"
+
+	store := &fakeStore{}
+	before := time.Now()
+	recorder := serve(t, store, http.MethodPost, "/events", strings.NewReader(body), "application/x-ndjson")
+	after := time.Now()
+
+	if recorder.Code != http.StatusAccepted {
+		t.Fatalf("expected %d got %d: %s", http.StatusAccepted, recorder.Code, recorder.Body.String())
+	}
+	events := store.receivedEvents()
+	if len(events) != 3 {
+		t.Fatalf("expected 3 events handed to the store, got %d", len(events))
+	}
+	for _, i := range []int{0, 2} {
+		if ts := events[i].Timestamp; ts.Before(before) || ts.After(after) {
+			t.Errorf("event %d: timestamp got %v, want the receive time between %v and %v", i, ts, before, after)
+		}
+	}
+	tsRef := time.Date(2026, 3, 11, 16, 45, 51, 0, time.UTC)
+	if !events[1].Timestamp.Equal(tsRef) {
+		t.Errorf("event 1: timestamp got %v, want %v", events[1].Timestamp, tsRef)
+	}
+}
+
 func TestQueryPost(t *testing.T) {
 	tsRef := time.Date(2026, 3, 11, 16, 45, 51, 0, time.UTC)
 	store := &fakeStore{
