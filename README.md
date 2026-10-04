@@ -23,8 +23,6 @@ A few of the API contract rules are not yet enforced or validated:
 - an unknown filter `op` is accepted and matches nothing;
 - a numeric filter value only matches stored values of the same kind (integer or float);
 - `limit` has no effect on aggregated queries;
-- NDJSON rows name the timestamp as `timestamp` 
-  - zero time value returned for unwindowed aggregations
 - the `application/json` response is buffered on the server, will be streamed eventually.
 
 ## Endpoints

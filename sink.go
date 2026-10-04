@@ -84,16 +84,22 @@ func marshalRaw(row *jsonRow) ([]byte, error) {
 
 	var b bytes.Buffer
 	b.WriteByte('{')
-	b.Write([]byte(`"timestamp":"`))
-	buf := row.ts.AppendFormat(b.AvailableBuffer(), time.RFC3339Nano)
-	b.Write(buf)
-	b.WriteByte('"')
+
+	// aggregations with no window have a zero time:
+	if !row.ts.IsZero() {
+		b.WriteString(`"ts":"`)
+		buf := row.ts.AppendFormat(b.AvailableBuffer(), time.RFC3339Nano)
+		b.Write(buf)
+		b.WriteByte('"')
+	}
 
 	for i, v := range row.cols {
 		if row.values[i] == nil {
 			continue
 		}
-		b.WriteByte(',')
+		if b.Len() > 1 {
+			b.WriteByte(',')
+		}
 
 		b.WriteByte('"')
 		b.WriteString(v.Name)
@@ -118,7 +124,7 @@ func marshalMap(row *jsonRow) ([]byte, error) {
 	}
 
 	m := make(map[string]interface{}, len(row.cols))
-	m["timestamp"] = row.ts
+	m["ts"] = row.ts
 	for i, key := range row.cols {
 		m[key.Name] = row.values[i]
 	}

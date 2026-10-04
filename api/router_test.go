@@ -95,8 +95,8 @@ func TestQueryPost(t *testing.T) {
 	}
 
 	want := []map[string]any{
-		{"timestamp": tsRef.Format(time.RFC3339Nano), "foo": true},
-		{"timestamp": tsRef.Add(time.Minute).Format(time.RFC3339Nano), "bar": 3.14},
+		{"ts": tsRef.Format(time.RFC3339Nano), "foo": true},
+		{"ts": tsRef.Add(time.Minute).Format(time.RFC3339Nano), "bar": 3.14},
 	}
 	if got := decodeNDJSON(t, recorder.Body); !reflect.DeepEqual(got, want) {
 		t.Errorf("rows\n got %v\nwant %v", got, want)
@@ -187,26 +187,56 @@ func TestQueryPostJSON_BucketRowsCarryTimestamp(t *testing.T) {
 	}
 }
 
+func TestQueryPost_AggregatedRowsCarryNoTimestamp(t *testing.T) {
+	store := &fakeStore{
+		columns: []wide.Column{
+			{Name: "host", Type: wide.ColumnString},
+			{Name: "COUNT", Type: wide.ColumnFloat64},
+			{Name: "AVG(duration_ms)", Type: wide.ColumnFloat64},
+		},
+		rows: []fakeRow{
+			{values: []any{"a", float64(2), float64(125)}},
+			{values: []any{"b", float64(1), float64(200)}},
+		},
+	}
+	params := wide.QueryParams{
+		GroupBy: []string{"host"},
+		Aggregations: []wide.Aggregation{
+			{Op: wide.OpCount},
+			{Op: wide.OpAvg, Column: "duration_ms"},
+		},
+	}
+
+	recorder := queryNDJSON(t, store, params)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("http %d: %s", recorder.Code, recorder.Body.String())
+	}
+	want := []map[string]any{
+		{"host": "a", "COUNT": float64(2), "AVG(duration_ms)": float64(125)},
+		{"host": "b", "COUNT": float64(1), "AVG(duration_ms)": float64(200)},
+	}
+	if got := decodeNDJSON(t, recorder.Body); !reflect.DeepEqual(want, got) {
+		t.Errorf("rows\n expected %v\ngot %v", want, got)
+	}
+}
+
 func TestQueryPost_AcceptHeaderSelectsTheResponseShape(t *testing.T) {
 	tsRef := time.Date(2026, 3, 11, 16, 45, 51, 0, time.UTC)
-
-	// TODO: the two models still name the time differently, migrate to ts:
-	ndjson := []map[string]any{{"timestamp": tsRef.Format(time.RFC3339Nano), "COUNT": float64(2)}}
-	array := []map[string]any{{"ts": tsRef.Format(time.RFC3339Nano), "COUNT": float64(2)}}
+	expect := []map[string]any{{"ts": tsRef.Format(time.RFC3339Nano), "COUNT": float64(2)}}
 
 	tests := []struct {
 		name        string
 		accept      string
 		contentType string
-		expect      []map[string]any
 	}{
-		{name: "no header", accept: "", contentType: "application/x-ndjson", expect: ndjson},
-		{name: "json", accept: "application/json", contentType: "application/json", expect: array},
-		{name: "grafana default", accept: "application/json, text/plain, */*", contentType: "application/json", expect: array},
-		{name: "any", accept: "*/*", contentType: "application/x-ndjson", expect: ndjson},
-		{name: "ndjson", accept: "application/x-ndjson", contentType: "application/x-ndjson", expect: ndjson},
-		{name: "json with parameter", accept: "application/json;q=0.9", contentType: "application/json", expect: array},
-		{name: "json after another type", accept: "text/plain, application/json", contentType: "application/json", expect: array},
+		{name: "no header", accept: "", contentType: "application/x-ndjson"},
+		{name: "json", accept: "application/json", contentType: "application/json"},
+		{name: "grafana default", accept: "application/json, text/plain, */*", contentType: "application/json"},
+		{name: "any", accept: "*/*", contentType: "application/x-ndjson"},
+		{name: "ndjson", accept: "application/x-ndjson", contentType: "application/x-ndjson"},
+		{name: "json with parameter", accept: "application/json;q=0.9", contentType: "application/json"},
+		{name: "json after another type", accept: "text/plain, application/json", contentType: "application/json"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -231,8 +261,8 @@ func TestQueryPost_AcceptHeaderSelectsTheResponseShape(t *testing.T) {
 			} else {
 				got = decodeNDJSON(t, recorder.Body)
 			}
-			if !reflect.DeepEqual(tc.expect, got) {
-				t.Errorf("rows\n expected %v\ngot %v", tc.expect, got)
+			if !reflect.DeepEqual(expect, got) {
+				t.Errorf("rows\n expected %v\ngot %v", expect, got)
 			}
 		})
 	}
@@ -301,6 +331,18 @@ func queryJSON(t *testing.T, store Store, params wide.QueryParams) *httptest.Res
 	}
 	return serve(t, store, http.MethodPost,
 		"/query/json?from=2026-03-11T16:45:00Z&to=2026-03-11T16:55:00Z",
+		bytes.NewReader(body), "application/json")
+}
+
+// queryNDJSON posts params to /query without an Accept header, the NDJSON default.
+func queryNDJSON(t *testing.T, store Store, params wide.QueryParams) *httptest.ResponseRecorder {
+	t.Helper()
+	body, err := json.Marshal(params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return serve(t, store, http.MethodPost,
+		"/query?from=2026-03-11T16:45:00Z&to=2026-03-11T16:55:00Z",
 		bytes.NewReader(body), "application/json")
 }
 

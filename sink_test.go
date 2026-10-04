@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -162,6 +163,51 @@ func TestStreamingSink(t *testing.T) {
 			if !found {
 				t.Errorf("expected map entry  with zero value for column %s", column.Name)
 			}
+		}
+	})
+	t.Run("ts key", func(t *testing.T) {
+		var b bytes.Buffer
+		sink := NewStreamingSink(&b)
+		sink.Schema([]Column{
+			{
+				Name: "foo",
+				Type: ColumnString,
+			},
+		})
+		tsRef := time.Date(2026, 3, 11, 16, 45, 51, 120_000_000, time.UTC)
+
+		_ = sink.Row(tsRef, []any{"here"})
+
+		var got map[string]any
+		err := json.Unmarshal(b.Bytes(), &got)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := map[string]any{"ts": "2026-03-11T16:45:51.12Z", "foo": "here"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("row\n expected %v\ngot %v", want, got)
+		}
+	})
+	t.Run("zero time has no ts", func(t *testing.T) {
+		var b bytes.Buffer
+		sink := NewStreamingSink(&b)
+		sink.Schema([]Column{
+			{
+				Name: "COUNT",
+				Type: ColumnFloat64,
+			},
+		})
+
+		_ = sink.Row(time.Time{}, []any{float64(2)})
+
+		var got map[string]any
+		err := json.Unmarshal(b.Bytes(), &got)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := map[string]any{"COUNT": float64(2)}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("row\n expected %v\ngot %v", want, got)
 		}
 	})
 }
