@@ -25,6 +25,7 @@ A few of the API contract rules are not yet enforced or validated:
 - `limit` has no effect on aggregated queries;
 - NDJSON rows name the timestamp as `timestamp` 
   - zero time value returned for unwindowed aggregations
+- the `application/json` response is buffered on the server, will be streamed eventually.
 
 ## Endpoints
 
@@ -35,7 +36,7 @@ A few of the API contract rules are not yet enforced or validated:
 | `POST /v1development/profiles` | OTLP profiles, JSON, gzip accepted | `202`, one event per sample |
 | gRPC `ProfilesService/Export` | OTLP profiles | same as above |
 | `POST /query?from=<RFC3339>&to=<RFC3339>` | query, see below | rows, NDJSON by default, JSON array with `Accept: application/json` |
-| `POST /query/json?from=<RFC3339>&to=<RFC3339>` | query (DEPRECATED) | JSON array of rows |
+| `POST /query/json?from=<RFC3339>&to=<RFC3339>` | query | JSON array of rows, **deprecated** endpoint |
 | `GET /health` | | `200` |
 
 Invalid queries and `wide.ErrInvalidQuery` from the store result in `400`, other store errors in `500`.
@@ -95,7 +96,7 @@ Numbers compare by value. A row without the field, or with a non-numeric value u
 
 ### Rows
 
-The response shape follows `Accept`: 
+The response media type follows `Accept`: 
 - `application/x-ndjson` (the default) is one object per line
 - `application/json` is one array of objects. 
 

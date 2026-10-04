@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/bmarinov/wide"
@@ -78,17 +79,41 @@ func newEventsMux(store Store) *http.ServeMux {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		w.Header().Set("Content-Type", "application/x-ndjson")
 
-		sink := wide.NewStreamingSink(w)
-		err = store.Query(r.Context(), from, to, params, sink)
-		if err != nil {
-			if errors.Is(err, wide.ErrInvalidQuery) {
-				w.WriteHeader(http.StatusBadRequest)
-			} else {
-				w.WriteHeader(http.StatusInternalServerError)
+		acceptJSON := acceptsJSON(r.Header.Get("Accept"))
+
+		w.Header().Set("Vary", "Accept")
+
+		if acceptJSON {
+			sink := &wide.CollectSink{}
+			err = store.Query(r.Context(), from, to, params, sink)
+			if err != nil {
+				if errors.Is(err, wide.ErrInvalidQuery) {
+					w.WriteHeader(http.StatusBadRequest)
+				} else {
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+				return
 			}
-			return
+
+			w.Header().Set("Content-Type", "application/json")
+			err = writeJSONArray(sink, w)
+			if err != nil {
+				slog.Error("encoding json", "err", err)
+			}
+		} else {
+			w.Header().Set("Content-Type", "application/x-ndjson")
+
+			sink := wide.NewStreamingSink(w)
+			err = store.Query(r.Context(), from, to, params, sink)
+			if err != nil {
+				if errors.Is(err, wide.ErrInvalidQuery) {
+					w.WriteHeader(http.StatusBadRequest)
+				} else {
+					w.WriteHeader(http.StatusInternalServerError)
+				}
+				return
+			}
 		}
 	}))
 	mux.Handle("POST /events", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -142,18 +167,7 @@ func newEventsMux(store Store) *http.ServeMux {
 
 		w.Header().Set("Content-Type", "application/json")
 
-		rows := make([]map[string]any, 0, len(sink.Result))
-		for _, e := range sink.Result {
-			row := map[string]any{}
-			if !e.Timestamp.IsZero() {
-				row["ts"] = e.Timestamp.Format(time.RFC3339Nano)
-			}
-			for _, f := range e.Fields {
-				row[f.Name] = f.Value
-			}
-			rows = append(rows, row)
-		}
-		err = json.NewEncoder(w).Encode(rows)
+		err = writeJSONArray(sink, w)
 		if err != nil {
 			slog.Error("encoding json", "err", err)
 		}
@@ -163,6 +177,36 @@ func newEventsMux(store Store) *http.ServeMux {
 	}))
 
 	return mux
+}
+
+// acceptsJSON returns true when the request header indicates json as an accepted response.
+func acceptsJSON(acceptHeader string) bool {
+	accept := strings.SplitSeq(acceptHeader, ",")
+
+	for mediaRange := range accept {
+		mediaType, _, _ := strings.Cut(strings.TrimSpace(mediaRange), ";")
+
+		if strings.EqualFold(mediaType, "application/json") {
+			return true
+		}
+	}
+	return false
+}
+
+// writeJSONArray marshals the collected rows as a json array and writes it to w.
+func writeJSONArray(sink *wide.CollectSink, w http.ResponseWriter) error {
+	rows := make([]map[string]any, 0, len(sink.Result))
+	for _, e := range sink.Result {
+		row := map[string]any{}
+		if !e.Timestamp.IsZero() {
+			row["ts"] = e.Timestamp.Format(time.RFC3339Nano)
+		}
+		for _, f := range e.Fields {
+			row[f.Name] = f.Value
+		}
+		rows = append(rows, row)
+	}
+	return json.NewEncoder(w).Encode(rows)
 }
 
 func processNDJSON(r io.Reader, handle func(wide.Event) error) error {

@@ -205,6 +205,8 @@ func TestQueryPost_AcceptHeaderSelectsTheResponseShape(t *testing.T) {
 		{name: "grafana default", accept: "application/json, text/plain, */*", contentType: "application/json", expect: array},
 		{name: "any", accept: "*/*", contentType: "application/x-ndjson", expect: ndjson},
 		{name: "ndjson", accept: "application/x-ndjson", contentType: "application/x-ndjson", expect: ndjson},
+		{name: "json with parameter", accept: "application/json;q=0.9", contentType: "application/json", expect: array},
+		{name: "json after another type", accept: "text/plain, application/json", contentType: "application/json", expect: array},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
