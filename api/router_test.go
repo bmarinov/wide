@@ -187,6 +187,57 @@ func TestQueryPostJSON_BucketRowsCarryTimestamp(t *testing.T) {
 	}
 }
 
+func TestQueryPost_AcceptHeaderSelectsTheResponseShape(t *testing.T) {
+	tsRef := time.Date(2026, 3, 11, 16, 45, 51, 0, time.UTC)
+
+	// TODO: the two models still name the time differently, migrate to ts:
+	ndjson := []map[string]any{{"timestamp": tsRef.Format(time.RFC3339Nano), "COUNT": float64(2)}}
+	array := []map[string]any{{"ts": tsRef.Format(time.RFC3339Nano), "COUNT": float64(2)}}
+
+	tests := []struct {
+		name        string
+		accept      string
+		contentType string
+		expect      []map[string]any
+	}{
+		{name: "no header", accept: "", contentType: "application/x-ndjson", expect: ndjson},
+		{name: "json", accept: "application/json", contentType: "application/json", expect: array},
+		{name: "grafana default", accept: "application/json, text/plain, */*", contentType: "application/json", expect: array},
+		{name: "any", accept: "*/*", contentType: "application/x-ndjson", expect: ndjson},
+		{name: "ndjson", accept: "application/x-ndjson", contentType: "application/x-ndjson", expect: ndjson},
+		{name: "json with parameter", accept: "application/json;q=0.9", contentType: "application/json", expect: array},
+		{name: "json after another type", accept: "text/plain, application/json", contentType: "application/json", expect: array},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &fakeStore{
+				columns: []wide.Column{{Name: "COUNT", Type: wide.ColumnFloat64}},
+				rows:    []fakeRow{{ts: tsRef, values: []any{float64(2)}}},
+			}
+			recorder := queryAccept(t, store, tc.accept)
+
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("http %d: %s", recorder.Code, recorder.Body.String())
+			}
+			if got := recorder.Header().Get("Content-Type"); got != tc.contentType {
+				t.Errorf("Content-Type expected %q got %q", tc.contentType, got)
+			}
+			if got := recorder.Header().Get("Vary"); got != "Accept" {
+				t.Errorf("Vary expected Accept to indicate content negotiation, got %q", got)
+			}
+			var got []map[string]any
+			if tc.contentType == "application/json" {
+				got = decodeJSONRows(t, recorder.Body)
+			} else {
+				got = decodeNDJSON(t, recorder.Body)
+			}
+			if !reflect.DeepEqual(tc.expect, got) {
+				t.Errorf("rows\n expected %v\ngot %v", tc.expect, got)
+			}
+		})
+	}
+}
+
 func TestQuery_InvalidRequestIsRejectedBeforeTheStore(t *testing.T) {
 	validRange := "from=2026-03-11T16:45:00Z&to=2026-03-11T16:55:00Z"
 	tests := []struct {
@@ -251,6 +302,24 @@ func queryJSON(t *testing.T, store Store, params wide.QueryParams) *httptest.Res
 	return serve(t, store, http.MethodPost,
 		"/query/json?from=2026-03-11T16:45:00Z&to=2026-03-11T16:55:00Z",
 		bytes.NewReader(body), "application/json")
+}
+
+// queryAccept posts a query to /query with the given Accept header, none when empty.
+func queryAccept(t *testing.T, store Store, accept string) *httptest.ResponseRecorder {
+	t.Helper()
+	request, err := http.NewRequest(http.MethodPost,
+		"/query?from=2026-03-11T16:45:00Z&to=2026-03-11T16:55:00Z",
+		strings.NewReader(`{"limit": 10}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	if accept != "" {
+		request.Header.Set("Accept", accept)
+	}
+	recorder := httptest.NewRecorder()
+	NewAppMux(store).ServeHTTP(recorder, request)
+	return recorder
 }
 
 func decodeNDJSON(t *testing.T, r io.Reader) []map[string]any {
