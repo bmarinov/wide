@@ -33,8 +33,14 @@ func TestEventPost(t *testing.T) {
 	if recorder.Code != http.StatusAccepted {
 		t.Errorf("expected %d got %d: %s", http.StatusAccepted, recorder.Code, recorder.Body.String())
 	}
-	if got := len(store.receivedEvents()); got != 3 {
-		t.Errorf("expected 3 events handed to the store, got %d", got)
+	tsRef := time.Date(2026, 3, 11, 16, 45, 51, 0, time.UTC)
+	want := []wide.Event{
+		{Timestamp: tsRef, Fields: []wide.Field{{Name: "route", Value: "/blap"}, {Name: "status", Value: int64(401)}}},
+		{Timestamp: tsRef, Fields: []wide.Field{{Name: "host", Value: "localhost"}, {Name: "message", Value: "user foo bar"}}},
+		{Timestamp: tsRef, Fields: []wide.Field{{Name: "trace_id", Value: "foo_123"}}},
+	}
+	if got := store.receivedEvents(); !reflect.DeepEqual(got, want) {
+		t.Errorf("events\n got %v\nwant %v", got, want)
 	}
 }
 
