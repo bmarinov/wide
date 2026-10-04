@@ -27,6 +27,7 @@ func Run(t *testing.T, newStore func(t *testing.T) api.Store) {
 		{"rows carry only the fields the event had", sparseRows},
 		{"select narrows rows to the chosen fields", selectFields},
 		{"filters", filters},
+		{"numeric filters compare by value across integer and float columns", numericFilterKinds},
 		{"limit caps the number of rows", limit},
 		{"aggregations", aggregations},
 		{"aggregating a non-numeric column is an invalid query", invalidAggregation},
@@ -173,6 +174,38 @@ func filters(t *testing.T, s api.Store) {
 			{Field: "host", Op: wide.EqOperator, Value: "a"},
 			{Field: "code", Op: wide.GtOperator, Value: float64(300)},
 		}, 1},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rows := query(t, s, base.Add(-time.Minute), base.Add(time.Minute), wide.QueryParams{Filters: tc.filters})
+			if len(rows) != tc.want {
+				t.Errorf("expected %d rows, got %d: %v", tc.want, len(rows), rows)
+			}
+		})
+	}
+}
+
+func numericFilterKinds(t *testing.T, s api.Store) {
+	base := time.Now().UTC().Truncate(time.Second)
+	// otlp int attributes, as_int points and profile sample values land as int64, doubles as float64.
+	// JSON filter values always decode as float64.
+	receive(t, s,
+		wide.Event{Timestamp: base, Fields: []wide.Field{{Name: "http.response.status_code", Value: int64(200)}, {Name: "jvm.gc.duration", Value: float64(0.5)}}},
+		wide.Event{Timestamp: base.Add(time.Second), Fields: []wide.Field{{Name: "http.response.status_code", Value: int64(500)}, {Name: "jvm.gc.duration", Value: float64(2)}}},
+		wide.Event{Timestamp: base.Add(2 * time.Second), Fields: []wide.Field{{Name: "http.response.status_code", Value: int64(404)}, {Name: "jvm.gc.duration", Value: float64(1)}}},
+	)
+
+	cases := []struct {
+		name    string
+		filters []wide.Filter
+		want    int
+	}{
+		{"eq with a float value on an integer column", []wide.Filter{{Field: "http.response.status_code", Op: wide.EqOperator, Value: float64(500)}}, 1},
+		{"gt with a float value on an integer column", []wide.Filter{{Field: "http.response.status_code", Op: wide.GtOperator, Value: float64(300)}}, 2},
+		{"lte with a float value on an integer column", []wide.Filter{{Field: "http.response.status_code", Op: wide.LteOperator, Value: float64(404)}}, 2},
+		{"eq with a fractional value matches no integer", []wide.Filter{{Field: "http.response.status_code", Op: wide.EqOperator, Value: float64(404.5)}}, 0},
+		{"eq with an integer value on a float column", []wide.Filter{{Field: "jvm.gc.duration", Op: wide.EqOperator, Value: int64(2)}}, 1},
+		{"gte with an integer value on a float column", []wide.Filter{{Field: "jvm.gc.duration", Op: wide.GteOperator, Value: int64(1)}}, 2},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
