@@ -58,63 +58,9 @@ func NewServer(mux *http.ServeMux, port int) *http.Server {
 func newEventsMux(store Store) *http.ServeMux {
 	mux := http.NewServeMux()
 	mux.Handle("POST /query", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		from, err := time.Parse(time.RFC3339, r.URL.Query().Get("from"))
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		to, err := time.Parse(time.RFC3339, r.URL.Query().Get("to"))
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		var params wide.QueryParams
-		err = json.NewDecoder(r.Body).Decode(&params)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		if err := params.Validate(); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-
-		acceptJSON := acceptsJSON(r.Header.Get("Accept"))
-
 		w.Header().Set("Vary", "Accept")
-
-		if acceptJSON {
-			sink := &wide.CollectSink{}
-			err = store.Query(r.Context(), from, to, params, sink)
-			if err != nil {
-				if errors.Is(err, wide.ErrInvalidQuery) {
-					w.WriteHeader(http.StatusBadRequest)
-				} else {
-					w.WriteHeader(http.StatusInternalServerError)
-				}
-				return
-			}
-
-			w.Header().Set("Content-Type", "application/json")
-			err = writeJSONArray(sink, w)
-			if err != nil {
-				slog.Error("encoding json", "err", err)
-			}
-		} else {
-			w.Header().Set("Content-Type", "application/x-ndjson")
-
-			sink := wide.NewStreamingSink(w)
-			err = store.Query(r.Context(), from, to, params, sink)
-			if err != nil {
-				if errors.Is(err, wide.ErrInvalidQuery) {
-					w.WriteHeader(http.StatusBadRequest)
-				} else {
-					w.WriteHeader(http.StatusInternalServerError)
-				}
-				return
-			}
-		}
+		acceptJSON := acceptsJSON(r.Header.Get("Accept"))
+		serveQuery(w, r, store, acceptJSON)
 	}))
 	mux.Handle("POST /events", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		received := time.Now().UTC()
@@ -131,29 +77,42 @@ func newEventsMux(store Store) *http.ServeMux {
 			w.WriteHeader(http.StatusAccepted)
 		}
 	}))
-
+	// deprecated, endpoint used by the grafana plugin
 	mux.Handle("POST /query/json", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		from, err := time.Parse(time.RFC3339, r.URL.Query().Get("from"))
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		to, err := time.Parse(time.RFC3339, r.URL.Query().Get("to"))
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		var params wide.QueryParams
-		err = json.NewDecoder(r.Body).Decode(&params)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		if err := params.Validate(); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
+		serveQuery(w, r, store, true)
+	}))
+	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
 
+	return mux
+}
+
+// serveQuery writes the store query result to w.
+func serveQuery(w http.ResponseWriter, r *http.Request, store Store, asJSONArray bool) {
+	from, err := time.Parse(time.RFC3339, r.URL.Query().Get("from"))
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	to, err := time.Parse(time.RFC3339, r.URL.Query().Get("to"))
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	var params wide.QueryParams
+	err = json.NewDecoder(r.Body).Decode(&params)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if err := params.Validate(); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	if asJSONArray {
 		sink := &wide.CollectSink{}
 		err = store.Query(r.Context(), from, to, params, sink)
 		if err != nil {
@@ -166,17 +125,24 @@ func newEventsMux(store Store) *http.ServeMux {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-
 		err = writeJSONArray(sink, w)
 		if err != nil {
 			slog.Error("encoding json", "err", err)
 		}
-	}))
-	mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-	}))
+	} else {
+		w.Header().Set("Content-Type", "application/x-ndjson")
 
-	return mux
+		sink := wide.NewStreamingSink(w)
+		err = store.Query(r.Context(), from, to, params, sink)
+		if err != nil {
+			if errors.Is(err, wide.ErrInvalidQuery) {
+				w.WriteHeader(http.StatusBadRequest)
+			} else {
+				w.WriteHeader(http.StatusInternalServerError)
+			}
+			return
+		}
+	}
 }
 
 // acceptsJSON returns true when the request header indicates json as an accepted response.
