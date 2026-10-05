@@ -127,6 +127,7 @@ func TestQueryPostJSON_AggregatedRows(t *testing.T) {
 		},
 	}
 	params := wide.QueryParams{
+		Select:  []string{},
 		GroupBy: []string{"host"},
 		Aggregations: []wide.Aggregation{
 			{Op: wide.OpCount},
@@ -277,6 +278,8 @@ func TestQuery_InvalidRequestIsRejectedBeforeTheStore(t *testing.T) {
 	}{
 		{name: "duplicate select column", query: validRange, body: `{"select": ["foo", "foo"]}`},
 		{name: "group by without aggregation", query: validRange, body: `{"groupBy": ["host"]}`},
+		{name: "select with aggregations", query: validRange, body: `{"select": ["host"], "aggregations": [{"op": "COUNT"}]}`},
+		{name: "window without aggregation", query: validRange, body: `{"window": 60000000000}`},
 		{name: "unparseable from", query: "from=yesterday&to=2026-03-11T16:55:00Z", body: `{}`},
 		{name: "missing to", query: "from=2026-03-11T16:45:00Z", body: `{}`},
 		{name: "malformed body", query: validRange, body: `{"limit": `},

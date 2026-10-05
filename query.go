@@ -37,6 +37,12 @@ func (q QueryParams) Validate() error {
 	if len(q.GroupBy) > 0 && len(q.Aggregations) == 0 {
 		return fmt.Errorf("aggregation required for groupby: %w", ErrInvalidQuery)
 	}
+	if q.Window != 0 && len(q.Aggregations) == 0 {
+		return fmt.Errorf("aggregation required for window: %w", ErrInvalidQuery)
+	}
+	if len(q.Select) > 0 && len(q.Aggregations) > 0 {
+		return fmt.Errorf("select not allowed with aggregations: %w", ErrInvalidQuery)
+	}
 	seen := make(map[string]struct{}, len(q.Select))
 	for _, col := range q.Select {
 		if _, ok := seen[col]; ok {
