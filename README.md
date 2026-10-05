@@ -19,7 +19,6 @@ The [Query](#query) section is the contract.
 
 A few of the API contract rules are not yet enforced or validated:
 - the queried time range is half-open, currently the bounds are not being checked;
-- `select` in an aggregated query and `window` in a raw query are ignored instead of rejected;
 - an unknown filter `op` is accepted and matches nothing;
 - a numeric filter value only matches stored values of the same kind (integer or float);
 - `limit` has no effect on aggregated queries;
